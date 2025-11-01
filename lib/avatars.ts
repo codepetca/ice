@@ -45,8 +45,9 @@ export function getEmojiName(emoji: string): string {
   return EMOJI_NAMES[emoji] || emoji;
 }
 
-// Get 3 random unique avatars from the pool
-export function getRandomAvatars(count: number = 3): string[] {
-  const shuffled = [...AVATAR_POOL].sort(() => Math.random() - 0.5);
+// Get 3 random unique avatars from the pool, excluding taken ones
+export function getRandomAvatars(count: number = 3, takenAvatars: string[] = []): string[] {
+  const available = AVATAR_POOL.filter((avatar) => !takenAvatars.includes(avatar));
+  const shuffled = [...available].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }

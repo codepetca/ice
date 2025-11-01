@@ -8,27 +8,27 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Keypad } from "@/components/Keypad";
 
 export default function ProjectorPage() {
-  const [classCode, setClassCode] = useState("");
+  const [roomCode, setClassCode] = useState("");
   const [connected, setConnected] = useState(false);
   const [storedClassCode, setStoredClassCode] = useState<string | null>(null);
 
-  const classDoc = useQuery(
-    api.classes.getClass,
+  const room = useQuery(
+    api.rooms.getRoom,
     storedClassCode ? { code: storedClassCode } : "skip"
   );
 
   const stats = useQuery(
-    api.classes.getClassStats,
-    classDoc?._id ? { classId: classDoc._id } : "skip"
+    api.rooms.getRoomStats,
+    room?._id ? { roomId: room._id } : "skip"
   );
 
   // Auto-connect when 4 digits entered
   useEffect(() => {
-    if (classCode.length === 4) {
-      setStoredClassCode(classCode);
+    if (roomCode.length === 4) {
+      setStoredClassCode(roomCode);
       setConnected(true);
     }
-  }, [classCode]);
+  }, [roomCode]);
 
   if (!connected) {
     return (
@@ -41,7 +41,7 @@ export default function ProjectorPage() {
           <div className="text-6xl mb-4">📺</div>
           <h1 className="text-5xl font-bold mb-4">Projector View</h1>
           <p className="text-xl text-purple-200 mb-8">
-            Enter the class code
+            Enter the room code
           </p>
 
           {/* Code Display */}
@@ -51,19 +51,19 @@ export default function ProjectorPage() {
                 key={index}
                 className="w-16 h-20 flex items-center justify-center text-4xl font-bold border-2 border-purple-300 rounded-xl bg-white text-gray-900"
               >
-                {classCode[index] || ""}
+                {roomCode[index] || ""}
               </div>
             ))}
           </div>
 
           {/* Keypad */}
-          <Keypad value={classCode} onChange={setClassCode} maxLength={4} />
+          <Keypad value={roomCode} onChange={setClassCode} maxLength={4} />
         </motion.div>
       </main>
     );
   }
 
-  if (!classDoc) {
+  if (!room) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-br from-purple-900 to-blue-900 text-white">
         <div className="text-center space-y-4">
@@ -74,10 +74,10 @@ export default function ProjectorPage() {
     );
   }
 
-  const timeElapsed = classDoc.phase1StartedAt
-    ? Math.floor((Date.now() - classDoc.phase1StartedAt) / 1000)
+  const timeElapsed = room.phase1StartedAt
+    ? Math.floor((Date.now() - room.phase1StartedAt) / 1000)
     : 0;
-  const timeRemaining = Math.max(0, classDoc.phase1Duration - timeElapsed);
+  const timeRemaining = Math.max(0, room.phase1Duration - timeElapsed);
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
 
@@ -90,9 +90,9 @@ export default function ProjectorPage() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center space-y-4"
         >
-          <h1 className="text-7xl font-bold">{classDoc.name}</h1>
+          <h1 className="text-7xl font-bold">{room.name}</h1>
           <div className="text-3xl text-purple-200">
-            Class Code: <span className="font-bold text-white">{classCode}</span>
+            Room Code: <span className="font-bold text-white">{roomCode}</span>
           </div>
         </motion.div>
 
@@ -104,18 +104,18 @@ export default function ProjectorPage() {
         >
           <div
             className={`px-12 py-6 rounded-3xl text-4xl font-bold ${
-              classDoc.phase1Active
+              room.phase1Active
                 ? "bg-green-500 text-white"
                 : "bg-gray-500 text-gray-200"
             }`}
           >
-            {classDoc.phase1Active ? "🟢 ACTIVE" : "⚪ NOT STARTED"}
+            {room.phase1Active ? "🟢 ACTIVE" : "⚪ NOT STARTED"}
           </div>
         </motion.div>
 
         {/* Timer */}
         <AnimatePresence>
-          {classDoc.phase1Active && (
+          {room.phase1Active && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -141,7 +141,7 @@ export default function ProjectorPage() {
         >
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 text-center space-y-4">
             <div className="text-8xl font-bold text-white">
-              {stats?.totalStudents || 0}
+              {stats?.totalUsers || 0}
             </div>
             <div className="text-3xl text-purple-200 uppercase tracking-wider">
               Students
@@ -150,16 +150,16 @@ export default function ProjectorPage() {
 
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 text-center space-y-4">
             <div className="text-8xl font-bold text-blue-300">
-              {stats?.activePairs || 0}
+              {stats?.activeGroups || 0}
             </div>
             <div className="text-3xl text-purple-200 uppercase tracking-wider">
-              Active Pairs
+              Active Groups
             </div>
           </div>
 
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 text-center space-y-4">
             <div className="text-8xl font-bold text-green-300">
-              {stats?.completedPairs || 0}
+              {stats?.completedGroups || 0}
             </div>
             <div className="text-3xl text-purple-200 uppercase tracking-wider">
               Completed
@@ -168,7 +168,7 @@ export default function ProjectorPage() {
         </motion.div>
 
         {/* Instructions */}
-        {!classDoc.phase1Active && (
+        {!room.phase1Active && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -184,7 +184,7 @@ export default function ProjectorPage() {
           </motion.div>
         )}
 
-        {classDoc.phase1Active && (
+        {room.phase1Active && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

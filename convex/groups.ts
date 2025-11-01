@@ -1,0 +1,854 @@
+import { v } from "convex/values";
+import { internalMutation, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+
+// Get the number of users currently in a group
+function getGroupSize(group: any): number {
+  let size = 0;
+  if (group.user1Id) size++;
+  if (group.user2Id) size++;
+  if (group.user3Id) size++;
+  if (group.user4Id) size++;
+  return size;
+}
+
+// Find which user slot someone is in (1-4)
+function getUserSlot(group: any, userId: string): number | null {
+  if (group.user1Id === userId) return 1;
+  if (group.user2Id === userId) return 2;
+  if (group.user3Id === userId) return 3;
+  if (group.user4Id === userId) return 4;
+  return null;
+}
+
+// Check if a user is part of a group
+function isUserInGroup(group: any, userId: string): boolean {
+  return getUserSlot(group, userId) !== null;
+}
+
+// Calculate backoff time in milliseconds based on level
+function getBackoffTime(level: number): number {
+  // Exponential backoff: 1s, 2s, 4s, 8s, 16s (max)
+  return Math.min(Math.pow(2, level) * 1000, 16000);
+}
+
+// Select a question for this group, avoiding recent questions for all members
+async function selectQuestion(ctx: any, memberIds: string[]) {
+  // Get recent questions for all members (last 3 each)
+  const recentQuestionIds = new Set<string>();
+
+  for (const memberId of memberIds) {
+    // Find groups where this user was user1
+    const user1Groups = await ctx.db
+      .query("groups")
+      .withIndex("by_user1", (q: any) => q.eq("user1Id", memberId))
+      .order("desc")
+      .take(3);
+
+    for (const group of user1Groups) {
+      if (group.currentQuestionId) {
+        recentQuestionIds.add(group.currentQuestionId);
+      }
+    }
+  }
+
+  // Get all active questions
+  const allQuestions = await ctx.db
+    .query("questions")
+    .filter((q: any) => q.eq(q.field("active"), true))
+    .collect();
+
+  // Filter out recently used questions
+  const availableQuestions = allQuestions.filter(
+    (q: any) => !recentQuestionIds.has(q._id)
+  );
+
+  // If no available questions, use any question
+  const questionPool =
+    availableQuestions.length > 0 ? availableQuestions : allQuestions;
+
+  // Select random question
+  const randomIndex = Math.floor(Math.random() * questionPool.length);
+  return questionPool[randomIndex];
+}
+
+// Cleanup expired group requests and reset user statuses
+export const cleanupExpiredRequests = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // Find all expired pending requests
+    const expiredRequests = await ctx.db
+      .query("groupRequests")
+      .withIndex("by_expires_at")
+      .filter((q) => q.lte(q.field("expiresAt"), now))
+      .collect();
+
+    // Filter to only pending requests
+    const pendingExpired = expiredRequests.filter(
+      (r) => r.status === "pending"
+    );
+
+    // Mark as expired and reset user statuses
+    for (const request of pendingExpired) {
+      // Mark request as expired
+      await ctx.db.patch(request._id, { status: "expired" });
+
+      // Reset requester status if still pending_sent
+      const requester = await ctx.db.get(request.requesterId);
+      if (requester && requester.status === "pending_sent") {
+        await ctx.db.patch(request.requesterId, { status: "available" });
+      }
+
+      // Reset target status if still pending_received
+      const target = await ctx.db.get(request.targetId);
+      if (target && target.status === "pending_received") {
+        await ctx.db.patch(request.targetId, { status: "available" });
+      }
+    }
+  },
+});
+
+// Auto-cancel requests when target group becomes full
+export const cancelRequestsForFullGroup = internalMutation({
+  args: { groupId: v.id("groups") },
+  handler: async (ctx, args) => {
+    const group = await ctx.db.get(args.groupId);
+    if (!group) return;
+
+    // Get the room to check max group size
+    const room = await ctx.db.get(group.roomId);
+    if (!room) return;
+
+    const currentSize = getGroupSize(group);
+    const maxSize = room.maxGroupSize || 4;
+
+    // If group is full, cancel all pending requests targeting members of this group
+    if (currentSize >= maxSize) {
+      const memberIds = [
+        group.user1Id,
+        group.user2Id,
+        group.user3Id,
+        group.user4Id,
+      ].filter(Boolean) as string[];
+
+      for (const memberId of memberIds) {
+        // Find all pending requests targeting this member
+        const requests = await ctx.db
+          .query("groupRequests")
+          .withIndex("by_room_and_target", (q) =>
+            q.eq("roomId", group.roomId).eq("targetId", memberId as any)
+          )
+          .filter((q) => q.eq(q.field("status"), "pending"))
+          .collect();
+
+        // Cancel them
+        for (const request of requests) {
+          await ctx.db.patch(request._id, { status: "cancelled" });
+
+          // Reset requester status if still pending_sent
+          const requester = await ctx.db.get(request.requesterId);
+          if (requester && requester.status === "pending_sent") {
+            await ctx.db.patch(request.requesterId, { status: "available" });
+          }
+        }
+      }
+    }
+  },
+});
+
+// Send a group join request
+export const sendGroupRequest = mutation({
+  args: {
+    userId: v.id("users"),
+    targetId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const target = await ctx.db.get(args.targetId);
+    if (!target) throw new Error("Target user not found");
+
+    // Can't request yourself
+    if (user._id === target._id) {
+      throw new Error("Cannot join yourself");
+    }
+
+    // Check if room is still active
+    const room = await ctx.db.get(user.roomId);
+    if (!room || !room.phase1Active) {
+      throw new Error("Room is not active");
+    }
+
+    // Block users who have a pending incoming request
+    if (user.status === "pending_received") {
+      throw new Error("Please respond to your incoming request first");
+    }
+
+    // Check spam prevention - exponential backoff
+    const now = Date.now();
+    const backoffLevel = user.requestBackoffLevel || 0;
+    const backoffTime = getBackoffTime(backoffLevel);
+
+    if (user.lastRequestAt && now - user.lastRequestAt < backoffTime) {
+      const waitTime = Math.ceil((backoffTime - (now - user.lastRequestAt)) / 1000);
+      throw new Error(`Please wait ${waitTime} seconds before sending another request`);
+    }
+
+    // Check if requester already has a pending outgoing request
+    const existingOutgoing = await ctx.db
+      .query("groupRequests")
+      .withIndex("by_room_and_requester", (q) =>
+        q.eq("roomId", user.roomId).eq("requesterId", args.userId)
+      )
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
+
+    if (existingOutgoing) {
+      throw new Error("You already have a pending request. Please wait or cancel it.");
+    }
+
+    // Check if target already has a group
+    let targetGroupId = target.currentGroupId;
+    if (targetGroupId) {
+      const targetGroup = await ctx.db.get(targetGroupId);
+      if (targetGroup && targetGroup.status !== "completed") {
+        // Check if group is full
+        const groupSize = getGroupSize(targetGroup);
+        const maxSize = room.maxGroupSize || 4;
+
+        if (groupSize >= maxSize) {
+          throw new Error("This group is full");
+        }
+
+        // Check if requester is already in this group
+        if (isUserInGroup(targetGroup, args.userId)) {
+          throw new Error("You're already in this group");
+        }
+      }
+    }
+
+    // Check for mutual request (target has requested requester)
+    const mutualRequest = await ctx.db
+      .query("groupRequests")
+      .withIndex("by_room_and_requester", (q) =>
+        q.eq("roomId", user.roomId).eq("requesterId", args.targetId)
+      )
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
+
+    // If mutual request exists and target is requesting us, auto-accept!
+    if (mutualRequest && mutualRequest.targetId === args.userId) {
+      // Delete both requests
+      await ctx.db.patch(mutualRequest._id, { status: "accepted" });
+
+      // Handle the pairing/grouping
+      return await handleAcceptRequest(ctx, {
+        acceptorId: args.userId,
+        requesterId: args.targetId,
+        room,
+      });
+    }
+
+    // Create the request
+    const expiresAt = now + 30000; // 30 seconds
+    await ctx.db.insert("groupRequests", {
+      roomId: user.roomId,
+      requesterId: args.userId,
+      targetId: args.targetId,
+      targetGroupId,
+      status: "pending",
+      createdAt: now,
+      expiresAt,
+    });
+
+    // Update requester's spam prevention tracking and status
+    await ctx.db.patch(args.userId, {
+      status: "pending_sent",
+      lastRequestAt: now,
+      requestBackoffLevel: backoffLevel + 1,
+    });
+
+    // Update target's status to pending_received (only if not already in a group)
+    if (target.status === "available") {
+      await ctx.db.patch(args.targetId, {
+        status: "pending_received",
+      });
+    }
+
+    return { success: true, waiting: true };
+  },
+});
+
+// Helper function to handle accepting a request (used by both accept and mutual acceptance)
+async function handleAcceptRequest(
+  ctx: any,
+  args: { acceptorId: string; requesterId: string; room: any }
+) {
+  const acceptor = await ctx.db.get(args.acceptorId);
+  const requester = await ctx.db.get(args.requesterId);
+
+  if (!acceptor || !requester) {
+    throw new Error("User not found");
+  }
+
+  // Check if acceptor is in a group
+  if (acceptor.currentGroupId) {
+    const acceptorGroup = await ctx.db.get(acceptor.currentGroupId);
+    if (acceptorGroup && acceptorGroup.status !== "completed") {
+      // Add requester to acceptor's group
+      const groupSize = getGroupSize(acceptorGroup);
+      const maxSize = args.room.maxGroupSize || 4;
+
+      if (groupSize >= maxSize) {
+        throw new Error("Group is full");
+      }
+
+      // Add requester to the group
+      const slotNum = groupSize + 1;
+      const updateFields: any = {
+        [`user${slotNum}Id`]: args.requesterId,
+        memberCount: groupSize + 1,
+      };
+
+      await ctx.db.patch(acceptor.currentGroupId, updateFields);
+
+      // Update requester's status
+      await ctx.db.patch(args.requesterId, {
+        currentGroupId: acceptor.currentGroupId,
+        status: "in_group",
+      });
+
+      // Get all members for response
+      const members = await getGroupMembers(ctx, acceptorGroup);
+
+      // Check if group is now full and cancel pending requests
+      if (groupSize + 1 >= maxSize) {
+        await ctx.scheduler.runAfter(0, internal.groups.cancelRequestsForFullGroup, {
+          groupId: acceptor.currentGroupId,
+        });
+      }
+
+      return {
+        success: true,
+        joinedGroup: true,
+        groupId: acceptor.currentGroupId,
+        members,
+        question: acceptorGroup.currentQuestionId
+          ? await ctx.db.get(acceptorGroup.currentQuestionId)
+          : null,
+      };
+    }
+  }
+
+  // Check if requester is in a group
+  if (requester.currentGroupId) {
+    const requesterGroup = await ctx.db.get(requester.currentGroupId);
+    if (requesterGroup && requesterGroup.status !== "completed") {
+      // Add acceptor to requester's group
+      const groupSize = getGroupSize(requesterGroup);
+      const maxSize = args.room.maxGroupSize || 4;
+
+      if (groupSize >= maxSize) {
+        throw new Error("Group is full");
+      }
+
+      // Add acceptor to the group
+      const slotNum = groupSize + 1;
+      const updateFields: any = {
+        [`user${slotNum}Id`]: args.acceptorId,
+        memberCount: groupSize + 1,
+      };
+
+      await ctx.db.patch(requester.currentGroupId, updateFields);
+
+      // Update acceptor's status
+      await ctx.db.patch(args.acceptorId, {
+        currentGroupId: requester.currentGroupId,
+        status: "in_group",
+      });
+
+      // Get all members for response
+      const members = await getGroupMembers(ctx, requesterGroup);
+
+      // Check if group is now full and cancel pending requests
+      if (groupSize + 1 >= maxSize) {
+        await ctx.scheduler.runAfter(0, internal.groups.cancelRequestsForFullGroup, {
+          groupId: requester.currentGroupId,
+        });
+      }
+
+      return {
+        success: true,
+        joinedGroup: true,
+        groupId: requester.currentGroupId,
+        members,
+        question: requesterGroup.currentQuestionId
+          ? await ctx.db.get(requesterGroup.currentQuestionId)
+          : null,
+      };
+    }
+  }
+
+  // Neither has a group, create a new one
+  const memberIds = [args.acceptorId, args.requesterId];
+  const question = await selectQuestion(ctx, memberIds);
+
+  const groupId = await ctx.db.insert("groups", {
+    roomId: args.room._id,
+    user1Id: args.acceptorId,
+    user2Id: args.requesterId,
+    memberCount: 2,
+    currentQuestionId: question._id,
+    user1Answered: false,
+    user2Answered: false,
+    status: "active",
+    createdAt: Date.now(),
+  });
+
+  // Update both users
+  await ctx.db.patch(args.acceptorId, {
+    currentGroupId: groupId,
+    status: "in_group",
+  });
+  await ctx.db.patch(args.requesterId, {
+    currentGroupId: groupId,
+    status: "in_group",
+  });
+
+  return {
+    success: true,
+    createdGroup: true,
+    groupId,
+    members: [
+      { id: acceptor._id, avatar: acceptor.avatar, code: acceptor.code },
+      { id: requester._id, avatar: requester.avatar, code: requester.code },
+    ],
+    question: {
+      text: question.text,
+      optionA: question.optionA,
+      optionB: question.optionB,
+      followUp: question.followUp,
+    },
+  };
+}
+
+// Get all members of a group
+async function getGroupMembers(ctx: any, group: any) {
+  const members = [];
+  const userIds = [group.user1Id, group.user2Id, group.user3Id, group.user4Id];
+
+  for (const userId of userIds) {
+    if (userId) {
+      const user = await ctx.db.get(userId);
+      if (user) {
+        members.push({
+          id: user._id,
+          avatar: user.avatar,
+          code: user.code,
+        });
+      }
+    }
+  }
+
+  return members;
+}
+
+// Accept a group request
+export const acceptGroupRequest = mutation({
+  args: {
+    userId: v.id("users"),
+    requestId: v.id("groupRequests"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const request = await ctx.db.get(args.requestId);
+    if (!request) throw new Error("Request not found");
+
+    // Verify this request is for this user
+    if (request.targetId !== args.userId) {
+      throw new Error("This request is not for you");
+    }
+
+    // Check if request is still pending
+    if (request.status !== "pending") {
+      throw new Error("Request is no longer active");
+    }
+
+    // Check if room is still active
+    const room = await ctx.db.get(user.roomId);
+    if (!room || !room.phase1Active) {
+      throw new Error("Room is not active");
+    }
+
+    // Mark request as accepted
+    await ctx.db.patch(request._id, { status: "accepted" });
+
+    // Handle the group join/creation
+    const result = await handleAcceptRequest(ctx, {
+      acceptorId: args.userId,
+      requesterId: request.requesterId,
+      room,
+    });
+
+    // Reset backoff level for requester on successful acceptance
+    await ctx.db.patch(request.requesterId, {
+      requestBackoffLevel: 0,
+    });
+
+    return result;
+  },
+});
+
+// Reject a group request
+export const rejectGroupRequest = mutation({
+  args: {
+    userId: v.id("users"),
+    requestId: v.id("groupRequests"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const request = await ctx.db.get(args.requestId);
+    if (!request) throw new Error("Request not found");
+
+    // Verify this request is for this user
+    if (request.targetId !== args.userId) {
+      throw new Error("This request is not for you");
+    }
+
+    // Mark request as rejected
+    await ctx.db.patch(request._id, { status: "rejected" });
+
+    // Reset requester status
+    const requester = await ctx.db.get(request.requesterId);
+    if (requester && requester.status === "pending_sent") {
+      await ctx.db.patch(request.requesterId, { status: "available" });
+    }
+
+    // Reset target's status (the user rejecting the request)
+    if (user.status === "pending_received") {
+      await ctx.db.patch(args.userId, { status: "available" });
+    }
+
+    return { success: true };
+  },
+});
+
+// Cancel your own outgoing request
+export const cancelGroupRequest = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return;
+
+    // Find pending outgoing request
+    const request = await ctx.db
+      .query("groupRequests")
+      .withIndex("by_room_and_requester", (q) =>
+        q.eq("roomId", user.roomId).eq("requesterId", args.userId)
+      )
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
+
+    if (request) {
+      await ctx.db.patch(request._id, { status: "cancelled" });
+
+      // Reset target's status if they were pending_received
+      const target = await ctx.db.get(request.targetId);
+      if (target && target.status === "pending_received") {
+        await ctx.db.patch(request.targetId, { status: "available" });
+      }
+    }
+
+    // Reset user status
+    await ctx.db.patch(args.userId, { status: "available" });
+
+    return { success: true };
+  },
+});
+
+// Get user's outgoing request status
+export const getOutgoingRequest = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+
+    // Find most recent outgoing request (pending or recently completed)
+    const requests = await ctx.db
+      .query("groupRequests")
+      .withIndex("by_room_and_requester", (q) =>
+        q.eq("roomId", user.roomId).eq("requesterId", args.userId)
+      )
+      .order("desc")
+      .take(1);
+
+    const request = requests[0];
+    if (!request) return null;
+
+    // Only return if it's pending or recently changed (within 5 seconds)
+    const now = Date.now();
+    const recentlyChanged = now - request.createdAt < 35000; // 35 seconds window
+
+    if (request.status !== "pending" && !recentlyChanged) {
+      return null;
+    }
+
+    // Get target user info
+    const targetUser = await ctx.db.get(request.targetId);
+    if (!targetUser) return null;
+
+    return {
+      requestId: request._id,
+      status: request.status,
+      target: {
+        id: targetUser._id,
+        avatar: targetUser.avatar,
+        code: targetUser.code,
+      },
+      createdAt: request.createdAt,
+      expiresAt: request.expiresAt,
+    };
+  },
+});
+
+// Get all pending incoming requests for a user (up to group limit)
+export const getIncomingRequests = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return [];
+
+    // Get room to check max group size
+    const room = await ctx.db.get(user.roomId);
+    if (!room) return [];
+
+    const maxSize = room.maxGroupSize || 4;
+
+    // Check current group size
+    let currentSize = 1; // User themselves
+    if (user.currentGroupId) {
+      const group = await ctx.db.get(user.currentGroupId);
+      if (group && group.status !== "completed") {
+        currentSize = getGroupSize(group);
+      }
+    }
+
+    // Calculate how many more can join
+    const remainingSlots = maxSize - currentSize;
+    if (remainingSlots <= 0) return [];
+
+    // Get pending incoming requests
+    const requests = await ctx.db
+      .query("groupRequests")
+      .withIndex("by_room_and_target", (q) =>
+        q.eq("roomId", user.roomId).eq("targetId", args.userId)
+      )
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .order("desc")
+      .take(remainingSlots);
+
+    // Get requester info for each request
+    const requestsWithInfo = [];
+    for (const request of requests) {
+      const requester = await ctx.db.get(request.requesterId);
+      if (requester) {
+        requestsWithInfo.push({
+          requestId: request._id,
+          requester: {
+            id: requester._id,
+            avatar: requester.avatar,
+            code: requester.code,
+          },
+          createdAt: request.createdAt,
+          expiresAt: request.expiresAt,
+        });
+      }
+    }
+
+    return requestsWithInfo;
+  },
+});
+
+// Get current group info
+export const getCurrentGroup = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user || !user.currentGroupId) return null;
+
+    const group = await ctx.db.get(user.currentGroupId);
+    if (!group) return null;
+
+    const userSlot = getUserSlot(group, args.userId);
+    if (!userSlot) return null;
+
+    // Get all group members
+    const members = [];
+    const userIds = [group.user1Id, group.user2Id, group.user3Id, group.user4Id];
+
+    for (let i = 0; i < userIds.length; i++) {
+      const memberId = userIds[i];
+      if (memberId) {
+        const member = await ctx.db.get(memberId);
+        if (member) {
+          const answered = group[`user${i + 1}Answered` as keyof typeof group] || false;
+          const answer = group[`user${i + 1}Answer` as keyof typeof group] as string | undefined;
+          members.push({
+            id: member._id,
+            avatar: member.avatar,
+            code: member.code,
+            answered,
+            answer,
+            isMe: memberId === args.userId,
+          });
+        }
+      }
+    }
+
+    const question = group.currentQuestionId
+      ? await ctx.db.get(group.currentQuestionId)
+      : null;
+
+    const myAnswered = group[`user${userSlot}Answered` as keyof typeof group] || false;
+    const allAnswered = members.every((m) => m.answered);
+
+    return {
+      groupId: group._id,
+      members,
+      question: question
+        ? {
+            text: question.text,
+            optionA: question.optionA,
+            optionB: question.optionB,
+            followUp: question.followUp,
+          }
+        : null,
+      myAnswered,
+      allAnswered,
+      status: group.status,
+      completedAt: group.completedAt,
+      createdAt: group.createdAt,
+    };
+  },
+});
+
+// Submit an answer to the group's question
+export const submitAnswer = mutation({
+  args: {
+    userId: v.id("users"),
+    groupId: v.id("groups"),
+    choice: v.string(), // "A" or "B"
+  },
+  handler: async (ctx, args) => {
+    const group = await ctx.db.get(args.groupId);
+    if (!group) throw new Error("Group not found");
+
+    const userSlot = getUserSlot(group, args.userId);
+    if (!userSlot) {
+      throw new Error("Not part of this group");
+    }
+
+    // Update the group with the answer
+    const updateFields: any = {
+      [`user${userSlot}Answer`]: args.choice,
+      [`user${userSlot}Answered`]: true,
+    };
+    await ctx.db.patch(args.groupId, updateFields);
+
+    // Store the answer
+    if (group.currentQuestionId) {
+      await ctx.db.insert("answers", {
+        roomId: group.roomId,
+        groupId: args.groupId,
+        questionId: group.currentQuestionId,
+        userId: args.userId,
+        choice: args.choice,
+        skipped: false,
+        timestamp: Date.now(),
+      });
+    }
+  },
+});
+
+// Complete the group session
+export const completeGroup = mutation({
+  args: {
+    userId: v.id("users"),
+    groupId: v.id("groups"),
+  },
+  handler: async (ctx, args) => {
+    const group = await ctx.db.get(args.groupId);
+    if (!group) throw new Error("Group not found");
+
+    await ctx.db.patch(args.groupId, {
+      status: "completed",
+      completedAt: Date.now(),
+    });
+
+    // Clear current group from all members and reset status to available
+    const memberIds = [
+      group.user1Id,
+      group.user2Id,
+      group.user3Id,
+      group.user4Id,
+    ].filter(Boolean);
+
+    for (const memberId of memberIds) {
+      await ctx.db.patch(memberId as any, {
+        currentGroupId: undefined,
+        status: "available",
+        requestBackoffLevel: 0, // Reset backoff on completion
+      });
+    }
+  },
+});
+
+// Get available users for grouping
+export const getAvailableUsers = query({
+  args: {
+    roomId: v.id("rooms"),
+    excludeUserId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+
+    // Return users with their group status
+    const usersWithGroupInfo = [];
+
+    for (const user of users) {
+      if (user._id === args.excludeUserId) continue;
+
+      let groupSize = 0;
+      let groupId = null;
+
+      if (user.currentGroupId) {
+        const group = await ctx.db.get(user.currentGroupId);
+        if (group && group.status !== "completed") {
+          groupSize = getGroupSize(group);
+          groupId = group._id;
+        }
+      }
+
+      usersWithGroupInfo.push({
+        id: user._id,
+        avatar: user.avatar,
+        code: user.code,
+        status: user.status,
+        groupSize,
+        groupId,
+      });
+    }
+
+    return usersWithGroupInfo;
+  },
+});

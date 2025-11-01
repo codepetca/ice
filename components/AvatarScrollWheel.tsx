@@ -4,19 +4,19 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { getEmojiName } from "@/lib/avatars";
 
-interface Student {
+interface User {
   id: string;
   avatar: string;
   code: number;
 }
 
 interface AvatarScrollWheelProps {
-  students: Student[];
-  onSelect: (studentId: string) => void;
+  students: User[];
+  onSelect: (userId: string) => void;
 }
 
 export function AvatarScrollWheel({ students, onSelect }: AvatarScrollWheelProps) {
-  // Sort students alphabetically by emoji name
+  // Sort users alphabetically by emoji name
   const sortedStudents = [...students].sort((a, b) => {
     const nameA = getEmojiName(a.avatar);
     const nameB = getEmojiName(b.avatar);
@@ -58,7 +58,7 @@ export function AvatarScrollWheel({ students, onSelect }: AvatarScrollWheelProps
   if (sortedStudents.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        <p>No other students in the class yet...</p>
+        <p>No other users in the room yet...</p>
         <p className="text-sm mt-2">Waiting for others to join</p>
       </div>
     );

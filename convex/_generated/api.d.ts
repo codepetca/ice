@@ -8,10 +8,12 @@
  * @module
  */
 
-import type * as classes from "../classes.js";
-import type * as pairing from "../pairing.js";
+import type * as crons from "../crons.js";
+import type * as dev from "../dev.js";
+import type * as groups from "../groups.js";
 import type * as questions from "../questions.js";
-import type * as students from "../students.js";
+import type * as rooms from "../rooms.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -28,10 +30,12 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  classes: typeof classes;
-  pairing: typeof pairing;
+  crons: typeof crons;
+  dev: typeof dev;
+  groups: typeof groups;
   questions: typeof questions;
-  students: typeof students;
+  rooms: typeof rooms;
+  users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

@@ -41,7 +41,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       case "success":
         return "bg-green-500 text-white";
       case "error":
-        return "bg-red-500 text-white";
+        return "bg-orange-500 text-white";
       case "warning":
         return "bg-yellow-500 text-white";
       case "info":
@@ -71,27 +71,27 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
 
       {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      <div className="fixed top-4 inset-x-0 z-50 flex flex-col gap-3 items-center pointer-events-none px-4">
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div
               key={toast.id}
-              initial={{ opacity: 0, x: 100, scale: 0.8 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 100, scale: 0.8 }}
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
               className={`${getToastStyles(
                 toast.type
-              )} px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 min-w-[300px] max-w-md pointer-events-auto`}
+              )} px-6 py-4 rounded-2xl shadow-xl flex items-center gap-4 min-w-[320px] max-w-md pointer-events-auto`}
               onClick={() => removeToast(toast.id)}
             >
-              <span className="text-2xl">{getToastIcon(toast.type)}</span>
-              <p className="flex-1 text-sm font-medium">{toast.message}</p>
+              <span className="text-3xl">{getToastIcon(toast.type)}</span>
+              <p className="flex-1 text-base font-semibold">{toast.message}</p>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   removeToast(toast.id);
                 }}
-                className="text-white/80 hover:text-white text-xl leading-none"
+                className="text-white/80 hover:text-white text-2xl leading-none"
               >
                 ×
               </button>
