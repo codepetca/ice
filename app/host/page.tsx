@@ -261,56 +261,21 @@ export default function HostPage() {
             // Show continue to saved room option
             <div className="space-y-6">
               <button
-                onClick={handleContinueToRoom}
+                onClick={handleCreateRoom}
                 className="w-full px-8 py-6 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition shadow-lg"
               >
-                Continue to {validatedRoom.roomCode}
+                Create New Room
               </button>
 
-              <div className="text-center text-gray-500">or create new room</div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duration
-                  </label>
-                  <select
-                    value={duration}
-                    onChange={(e) => setDuration(parseInt(e.target.value))}
-                    className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                      backgroundPosition: 'right 1rem center',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundSize: '1.5em 1.5em',
-                    }}
-                  >
-                    <option value={5}>5 minutes</option>
-                    <option value={10}>10 minutes</option>
-                    <option value={15}>15 minutes</option>
-                    <option value={20}>20 minutes</option>
-                    <option value={30}>30 minutes</option>
-                  </select>
-                </div>
-
+              {/* Options Toggle */}
+              <div className="text-right">
                 <button
-                  onClick={handleCreateRoom}
-                  className="w-full px-8 py-4 text-xl font-semibold text-green-700 border-2 border-green-600 rounded-xl hover:bg-green-50 transition"
+                  onClick={() => setShowOptions(!showOptions)}
+                  className="text-sm text-gray-600 hover:text-gray-900 underline transition"
                 >
-                  Create New Room
+                  {showOptions ? "Hide options" : "options"}
                 </button>
               </div>
-            </div>
-          ) : (
-            // No saved room, show create form
-            <div className="space-y-6">
-              {/* Options Toggle */}
-              <button
-                onClick={() => setShowOptions(!showOptions)}
-                className="text-sm text-gray-600 hover:text-gray-900 underline transition"
-              >
-                {showOptions ? "Hide options" : "Show options"}
-              </button>
 
               {/* Collapsible Options */}
               {showOptions && (
@@ -368,12 +333,90 @@ export default function HostPage() {
                 </motion.div>
               )}
 
+              <hr className="border-t-2 border-gray-300" />
+
+              <button
+                onClick={handleContinueToRoom}
+                className="w-full px-8 py-4 text-xl font-semibold text-green-700 border-2 border-green-600 rounded-xl hover:bg-green-50 transition"
+              >
+                Continue to {validatedRoom.roomCode}
+              </button>
+            </div>
+          ) : (
+            // No saved room, show create form
+            <div className="space-y-6">
               <button
                 onClick={handleCreateRoom}
                 className="w-full px-8 py-6 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition shadow-lg"
               >
                 Create Room
               </button>
+
+              {/* Options Toggle */}
+              <div className="text-right">
+                <button
+                  onClick={() => setShowOptions(!showOptions)}
+                  className="text-sm text-gray-600 hover:text-gray-900 underline transition"
+                >
+                  {showOptions ? "Hide options" : "options"}
+                </button>
+              </div>
+
+              {/* Collapsible Options */}
+              {showOptions && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Duration
+                    </label>
+                    <select
+                      value={duration}
+                      onChange={(e) => setDuration(parseInt(e.target.value))}
+                      className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 1rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                      }}
+                    >
+                      <option value={5}>5 minutes</option>
+                      <option value={10}>10 minutes</option>
+                      <option value={15}>15 minutes</option>
+                      <option value={20}>20 minutes</option>
+                      <option value={30}>30 minutes</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Max Group Size
+                    </label>
+                    <select
+                      value={maxGroupSize}
+                      onChange={(e) => setMaxGroupSize(parseInt(e.target.value))}
+                      className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 1rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                      }}
+                    >
+                      <option value={2}>2 people</option>
+                      <option value={3}>3 people</option>
+                      <option value={4}>4 people</option>
+                      <option value={5}>5 people</option>
+                      <option value={6}>6 people</option>
+                    </select>
+                  </div>
+                </motion.div>
+              )}
             </div>
           )}
         </motion.div>
@@ -462,12 +505,66 @@ export default function HostPage() {
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
                 Users in Room
               </h3>
+
+              {/* Search/Filter Box */}
+              <div className="mb-4 relative">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="w-full pl-10 pr-10 py-3 text-lg border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+                />
+                {userSearch && (
+                  <button
+                    onClick={() => setUserSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {[...roomUsers]
                   .sort((a, b) => {
                     const nameA = getEmojiName(a.avatar);
                     const nameB = getEmojiName(b.avatar);
                     return nameA.localeCompare(nameB);
+                  })
+                  .filter((user) => {
+                    const userName = getEmojiName(user.avatar).toLowerCase();
+
+                    // Filter by search text
+                    if (userSearch && !userName.includes(userSearch.toLowerCase())) {
+                      return false;
+                    }
+
+                    return true;
                   })
                   .map((user) => (
                     <div
