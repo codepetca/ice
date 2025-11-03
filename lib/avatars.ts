@@ -110,8 +110,8 @@ export function getEmojiName(emoji: string): string {
   }
 
   if (!name) {
-    console.warn(`Missing emoji name for: ${emoji}`);
-    return "user"; // Fallback to generic name instead of showing emoji
+    // Fallback to generic name if emoji not found in map
+    return "user";
   }
   return name;
 }

@@ -116,7 +116,7 @@ export default function UserPage() {
         showToast("Welcome back!", "success");
       } catch (error: any) {
         localStorage.removeItem(`ice_user_${roomCode}`);
-        console.log("Session expired or invalid:", error.message);
+        // Session expired or invalid - user will need to rejoin
       } finally {
         setCheckingSession(false);
       }

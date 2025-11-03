@@ -490,7 +490,7 @@ export default function HostPage() {
                 </button>
               ) : (
                 <button
-                  onClick={handleStopPhase1}
+                  onClick={() => handleStopPhase1()}
                   className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition"
                 >
                   Stop
