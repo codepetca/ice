@@ -50,7 +50,8 @@ export default function Home() {
   useEffect(() => {
     if (fullCode.length === 3 && room !== undefined && !validating) {
       if (room) {
-        // Room exists, navigate to user page
+        // Room exists, show loading state then navigate
+        setValidating(true);
         router.push(`/user?roomCode=${fullCode}`);
       } else {
         // Room doesn't exist, show error and reset
@@ -147,10 +148,23 @@ export default function Home() {
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 onPaste={handlePaste}
                 maxLength={1}
-                className="w-20 h-24 text-center text-5xl font-bold border-4 border-blue-300 rounded-2xl bg-blue-600 text-white placeholder-blue-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-200 transition uppercase"
+                disabled={validating || (fullCode.length === 3 && room === undefined)}
+                className="w-20 h-24 text-center text-5xl font-bold border-4 border-blue-300 rounded-2xl bg-blue-600 text-white placeholder-blue-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-200 transition uppercase disabled:opacity-60"
               />
             ))}
           </div>
+
+          {/* Loading indicator */}
+          {(validating || (fullCode.length === 3 && room === undefined)) && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center space-y-2"
+            >
+              <div className="text-4xl">🔄</div>
+              <p className="text-gray-600">Joining room...</p>
+            </motion.div>
+          )}
         </div>
       </motion.div>
     </main>
