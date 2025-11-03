@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { motion } from "framer-motion";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { getEmojiName } from "@/lib/avatars";
 
 const ROOM_STORAGE_KEY = "ice-host-room";
@@ -38,8 +39,11 @@ function generateRoomName(): string {
 
 export default function HostPage() {
   const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [view, setView] = useState<"create" | "manage">("create");
   const [duration, setDuration] = useState(10); // minutes
+  const [maxGroupSize, setMaxGroupSize] = useState(4);
+  const [showOptions, setShowOptions] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [pin, setPin] = useState("");
@@ -47,6 +51,7 @@ export default function HostPage() {
   const [validatedRoom, setValidatedRoom] = useState<SavedRoom | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [validatingSavedRoom, setValidatingSavedRoom] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   const createRoom = useMutation(api.rooms.createRoom);
   const startPhase1 = useMutation(api.rooms.startPhase1);
@@ -106,6 +111,27 @@ export default function HostPage() {
     }
   }, [validatingSavedRoom, savedRoom, savedRoomQuery]);
 
+  // Timer update interval for admin dashboard
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-trigger winding down at 15 seconds remaining
+  useEffect(() => {
+    if (room && room.phase1Active && room.phase1StartedAt && !room.windingDownStartedAt) {
+      const timeElapsed = Math.floor((Date.now() - room.phase1StartedAt) / 1000);
+      const timeRemaining = room.phase1Duration - timeElapsed;
+
+      if (timeRemaining <= 15 && roomId && pin) {
+        handleStopPhase1(true); // Skip confirmation for auto-trigger
+      }
+    }
+  }, [room, currentTime, roomId, pin]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleCreateRoom = async () => {
     try {
       // Seed questions first time
@@ -117,6 +143,7 @@ export default function HostPage() {
       const result = await createRoom({
         name: internalName,
         phase1Duration: duration * 60, // convert to seconds
+        maxGroupSize: maxGroupSize,
       });
 
       // Save to state
@@ -168,12 +195,23 @@ export default function HostPage() {
     }
   };
 
-  const handleStopPhase1 = async () => {
+  const handleStopPhase1 = async (skipConfirm = false) => {
     if (!roomId || !pin) return;
+
+    if (!skipConfirm) {
+      const confirmed = await showConfirm({
+        title: "Stop Session?",
+        message: "Users will have 15 seconds to finish their current activity.",
+        confirmText: "Stop",
+        cancelText: "Cancel",
+      });
+
+      if (!confirmed) return;
+    }
 
     try {
       await stopPhase1({ roomId: roomId as Id<"rooms">, pin });
-      showToast("Phase 1 stopped", "info");
+      showToast("Winding down - session will stop in 15 seconds", "info");
     } catch (error: any) {
       showToast(error.message, "error");
     }
@@ -266,28 +304,69 @@ export default function HostPage() {
           ) : (
             // No saved room, show create form
             <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Duration
-                </label>
-                <select
-                  value={duration}
-                  onChange={(e) => setDuration(parseInt(e.target.value))}
-                  className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                    backgroundPosition: 'right 1rem center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1.5em 1.5em',
-                  }}
+              {/* Options Toggle */}
+              <button
+                onClick={() => setShowOptions(!showOptions)}
+                className="text-sm text-gray-600 hover:text-gray-900 underline transition"
+              >
+                {showOptions ? "Hide options" : "Show options"}
+              </button>
+
+              {/* Collapsible Options */}
+              {showOptions && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4"
                 >
-                  <option value={5}>5 minutes</option>
-                  <option value={10}>10 minutes</option>
-                  <option value={15}>15 minutes</option>
-                  <option value={20}>20 minutes</option>
-                  <option value={30}>30 minutes</option>
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Duration
+                    </label>
+                    <select
+                      value={duration}
+                      onChange={(e) => setDuration(parseInt(e.target.value))}
+                      className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 1rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                      }}
+                    >
+                      <option value={5}>5 minutes</option>
+                      <option value={10}>10 minutes</option>
+                      <option value={15}>15 minutes</option>
+                      <option value={20}>20 minutes</option>
+                      <option value={30}>30 minutes</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Max Group Size
+                    </label>
+                    <select
+                      value={maxGroupSize}
+                      onChange={(e) => setMaxGroupSize(parseInt(e.target.value))}
+                      className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 1rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                      }}
+                    >
+                      <option value={2}>2 people</option>
+                      <option value={3}>3 people</option>
+                      <option value={4}>4 people</option>
+                      <option value={5}>5 people</option>
+                      <option value={6}>6 people</option>
+                    </select>
+                  </div>
+                </motion.div>
+              )}
 
               <button
                 onClick={handleCreateRoom}
@@ -304,10 +383,19 @@ export default function HostPage() {
 
   // Manage view
   if (view === "manage" && room) {
-    const timeElapsed = room.phase1StartedAt
-      ? Math.floor((Date.now() - room.phase1StartedAt) / 1000)
+    // Calculate winding down progress
+    const windingDownElapsed = room.windingDownStartedAt
+      ? Math.floor((currentTime - room.windingDownStartedAt) / 1000)
       : 0;
-    const timeRemaining = Math.max(0, room.phase1Duration - timeElapsed);
+    const windingDownRemaining = Math.max(0, 15 - windingDownElapsed);
+
+    // Use winding down time if in winding down mode, otherwise use normal time
+    const timeElapsed = room.phase1StartedAt && room.phase1Active
+      ? Math.floor((currentTime - room.phase1StartedAt) / 1000)
+      : 0;
+    const normalTimeRemaining = Math.max(0, room.phase1Duration - timeElapsed);
+
+    const timeRemaining = room.windingDownStartedAt ? windingDownRemaining : normalTimeRemaining;
     const minutes = Math.floor(timeRemaining / 60);
     const seconds = timeRemaining % 60;
 
@@ -334,38 +422,12 @@ export default function HostPage() {
 
           <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
 
-            <div className="border-t pt-6 space-y-4">
-              {room.phase1Active && (
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-gray-900">
-                    {minutes}:{seconds.toString().padStart(2, "0")}
-                  </div>
-                  <p className="text-gray-600">Time Remaining</p>
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className={`text-4xl font-bold ${room.windingDownStartedAt ? 'text-orange-500' : 'text-gray-900'}`}>
+                  {minutes}:{seconds.toString().padStart(2, "0")}
                 </div>
-              )}
-
-              {stats && (
-                <div className="grid grid-cols-3 gap-4 pt-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-gray-900">
-                      {stats.totalUsers}
-                    </div>
-                    <p className="text-sm text-gray-600">Joined</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-600">
-                      {stats.activeGroups}
-                    </div>
-                    <p className="text-sm text-gray-600">Active Groups</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-600">
-                      {stats.completedGroups}
-                    </div>
-                    <p className="text-sm text-gray-600">Completed</p>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
             <div className="flex gap-4">
@@ -375,6 +437,13 @@ export default function HostPage() {
                   className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition"
                 >
                   Start
+                </button>
+              ) : room.windingDownStartedAt ? (
+                <button
+                  disabled
+                  className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-gray-400 rounded-xl cursor-not-allowed"
+                >
+                  Stopping...
                 </button>
               ) : (
                 <button

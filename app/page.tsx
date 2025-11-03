@@ -3,11 +3,22 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useToast } from "@/components/Toast";
 
 export default function Home() {
+  const { showToast } = useToast();
   const [code, setCode] = useState(["", "", ""]);
+  const [validating, setValidating] = useState(false);
   const router = useRouter();
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const fullCode = code.join("");
+  const room = useQuery(
+    api.rooms.getRoom,
+    fullCode.length === 3 ? { code: fullCode } : "skip"
+  );
 
   // Autofocus on first input on mount
   useEffect(() => {
@@ -35,14 +46,24 @@ export default function Home() {
     return () => document.removeEventListener("keydown", handleGlobalKeyDown);
   }, [code]);
 
-  // Auto-advance when all 3 letters entered
+  // Auto-advance when all 3 letters entered and room exists
   useEffect(() => {
-    const fullCode = code.join("");
-    if (fullCode.length === 3) {
-      // Navigate to user page with the code
-      router.push(`/user?roomCode=${fullCode}`);
+    if (fullCode.length === 3 && room !== undefined && !validating) {
+      if (room) {
+        // Room exists, navigate to user page
+        router.push(`/user?roomCode=${fullCode}`);
+      } else {
+        // Room doesn't exist, show error and reset
+        setValidating(true);
+        showToast("Room not found - please check the code", "error");
+        setTimeout(() => {
+          setCode(["", "", ""]);
+          setValidating(false);
+          inputRefs.current[0]?.focus();
+        }, 1500);
+      }
     }
-  }, [code, router]);
+  }, [fullCode, room, router, validating, showToast]);
 
   const handleInputChange = (index: number, value: string) => {
     const upperValue = value.toUpperCase();

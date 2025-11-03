@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 // Cleanup expired rooms and cascade delete all associated data
 export const cleanupExpiredRooms = internalMutation({
@@ -76,6 +77,7 @@ export const createRoom = mutation({
   args: {
     name: v.string(),
     phase1Duration: v.number(), // in seconds
+    maxGroupSize: v.optional(v.number()), // optional, defaults to 4
   },
   handler: async (ctx, args) => {
     const code = generateRoomCode();
@@ -89,7 +91,7 @@ export const createRoom = mutation({
       name: args.name,
       phase1Active: false,
       phase1Duration: args.phase1Duration,
-      maxGroupSize: 4,
+      maxGroupSize: args.maxGroupSize || 4,
       createdAt: now,
       expiresAt: now + sevenDays,
     });
@@ -142,8 +144,26 @@ export const stopPhase1 = mutation({
     if (!room) throw new Error("Room not found");
     if (room.pin !== args.pin) throw new Error("Invalid PIN");
 
+    // Start winding down period (15 seconds to finish)
+    const now = Date.now();
+    await ctx.db.patch(args.roomId, {
+      windingDownStartedAt: now,
+    });
+
+    // Schedule full stop after 15 seconds
+    await ctx.scheduler.runAfter(15000, internal.rooms.finalizeStop, {
+      roomId: args.roomId,
+    });
+  },
+});
+
+// Internal mutation to fully stop Phase 1 after winding down
+export const finalizeStop = internalMutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
     await ctx.db.patch(args.roomId, {
       phase1Active: false,
+      windingDownStartedAt: undefined,
     });
   },
 });

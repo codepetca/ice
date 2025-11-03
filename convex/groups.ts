@@ -32,8 +32,28 @@ function getBackoffTime(level: number): number {
   return Math.min(Math.pow(2, level) * 1000, 16000);
 }
 
+// Deterministic shuffle based on a seed (date)
+function seededShuffle<T>(array: T[], seed: number): T[] {
+  const shuffled = [...array];
+  let currentSeed = seed;
+
+  // Simple seeded random number generator (LCG)
+  const seededRandom = () => {
+    currentSeed = (currentSeed * 9301 + 49297) % 233280;
+    return currentSeed / 233280;
+  };
+
+  // Fisher-Yates shuffle with seeded random
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(seededRandom() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled;
+}
+
 // Select a question for this group, avoiding recent questions for all members
-async function selectQuestion(ctx: any, memberIds: string[]) {
+async function selectQuestion(ctx: any, memberIds: string[]): Promise<any> {
   // Get recent questions for all members (last 3 each)
   const recentQuestionIds = new Set<string>();
 
@@ -67,9 +87,20 @@ async function selectQuestion(ctx: any, memberIds: string[]) {
   const questionPool =
     availableQuestions.length > 0 ? availableQuestions : allQuestions;
 
-  // Select random question
-  const randomIndex = Math.floor(Math.random() * questionPool.length);
-  return questionPool[randomIndex];
+  // Ensure we have at least one question
+  if (questionPool.length === 0) {
+    throw new Error("No questions available");
+  }
+
+  // Use date as seed for deterministic daily rotation
+  const today = new Date();
+  const dateSeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+
+  // Shuffle questions based on today's date
+  const shuffledQuestions = seededShuffle(questionPool, dateSeed);
+
+  // Select first question from shuffled pool
+  return shuffledQuestions[0]!;
 }
 
 // Cleanup expired group requests and reset user statuses
@@ -182,6 +213,11 @@ export const sendGroupRequest = mutation({
       throw new Error("Room is not active");
     }
 
+    // Block joining groups during winding down period
+    if (room.windingDownStartedAt) {
+      throw new Error("Session is ending soon");
+    }
+
     // Block users who have a pending incoming request
     if (user.status === "pending_received") {
       throw new Error("Please respond to your incoming request first");
@@ -193,8 +229,7 @@ export const sendGroupRequest = mutation({
     const backoffTime = getBackoffTime(backoffLevel);
 
     if (user.lastRequestAt && now - user.lastRequestAt < backoffTime) {
-      const waitTime = Math.ceil((backoffTime - (now - user.lastRequestAt)) / 1000);
-      throw new Error(`Please wait ${waitTime} seconds before sending another request`);
+      throw new Error("Please wait...");
     }
 
     // Check if requester already has a pending outgoing request

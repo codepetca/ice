@@ -3,13 +3,16 @@
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
 import { ToastProvider } from "@/components/Toast";
+import { ConfirmDialogProvider } from "@/components/ConfirmDialog";
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL || "");
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
   return (
     <ConvexProvider client={convex}>
-      <ToastProvider>{children}</ToastProvider>
+      <ToastProvider>
+        <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+      </ToastProvider>
     </ConvexProvider>
   );
 }

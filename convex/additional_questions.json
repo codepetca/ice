@@ -1,0 +1,26 @@
+[
+  {
+    "text": "Would you rather...",
+    "category": "science",
+    "optionA": "Discover a new planet",
+    "optionB": "Discover a cure for a disease",
+    "followUp": "What scientific mystery fascinates you?",
+    "active": true
+  },
+  {
+    "text": "Would you rather...",
+    "category": "fantasy",
+    "optionA": "Be a wizard",
+    "optionB": "Be a knight",
+    "followUp": "What magical ability would you want?",
+    "active": true
+  },
+  {
+    "text": "Would you rather...",
+    "category": "mystery",
+    "optionA": "Solve a famous cold case",
+    "optionB": "Discover a hidden treasure",
+    "followUp": "What mystery would you want to solve?",
+    "active": true
+  }
+]

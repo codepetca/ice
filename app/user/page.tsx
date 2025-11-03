@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useMachine } from "@xstate/react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -15,6 +15,7 @@ import { getRandomAvatars, getEmojiName } from "@/lib/avatars";
 
 export default function UserPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { showToast } = useToast();
   const [state, send] = useMachine(userMachine);
   const [roomCode] = useState(searchParams.get("roomCode") || "");
@@ -279,7 +280,13 @@ export default function UserPage() {
         })
       );
     } catch (error: any) {
+      // Show error and redirect back to home if room doesn't exist
       showToast(error.message, "error");
+      if (error.message === "Room not found") {
+        setTimeout(() => {
+          router.push("/");
+        }, 2000);
+      }
     }
   };
 
@@ -316,7 +323,12 @@ export default function UserPage() {
         }
       }
     } catch (error: any) {
-      showToast(error.message, "error");
+      // Show rate limit errors as info instead of error
+      if (error.message === "Please wait...") {
+        showToast(error.message, "info");
+      } else {
+        showToast(error.message, "error");
+      }
       setSelectedUser(null);
     }
   };
@@ -337,6 +349,8 @@ export default function UserPage() {
   const handleAcceptRequest = async (requestId: string) => {
     if (!state.context.userId) return;
 
+    const wasAlreadyInGroup = !!currentGroup?.groupId;
+
     try {
       const result = await acceptGroupRequest({
         userId: state.context.userId as Id<"users">,
@@ -344,13 +358,19 @@ export default function UserPage() {
       });
 
       if (result.success) {
-        send({
-          type: "JOINED_GROUP",
-          groupId: (result as any).groupId!,
-          members: (result as any).members || [],
-          question: (result as any).question,
-        });
-        showToast("Joined group!", "success");
+        // Only send JOINED_GROUP event and show toast if we weren't already in a group
+        if (!wasAlreadyInGroup) {
+          send({
+            type: "JOINED_GROUP",
+            groupId: (result as any).groupId!,
+            members: (result as any).members || [],
+            question: (result as any).question,
+          });
+          showToast("Joined group!", "success");
+        } else {
+          // Just show a different toast for accepting someone into existing group
+          showToast("Added to group!", "success");
+        }
       }
     } catch (error: any) {
       showToast(error.message, "error");
@@ -487,7 +507,6 @@ export default function UserPage() {
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-md space-y-8 text-center"
           >
-            <div className="text-6xl mb-6">⏳</div>
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               You&apos;re in!
             </h2>
@@ -520,6 +539,20 @@ export default function UserPage() {
           />
         )}
 
+        {/* Winding down warning banner */}
+        {room?.windingDownStartedAt && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="fixed inset-x-0 top-0 z-40 p-2"
+          >
+            <div className="bg-orange-500 text-white rounded-xl shadow-lg p-4 text-center max-w-md mx-auto">
+              <div className="font-bold text-lg">⏰ Session ending soon!</div>
+              <div className="text-sm">Finish your current activity</div>
+            </div>
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -538,45 +571,54 @@ export default function UserPage() {
                 <h3 className="text-2xl font-semibold text-gray-700">
                   Join a group
                 </h3>
-                <div className="grid grid-cols-3 gap-4">
-                  {[...availableUsers]
-                    .sort((a, b) => {
-                      const nameA = getEmojiName(a.avatar);
-                      const nameB = getEmojiName(b.avatar);
-                      return nameA.localeCompare(nameB);
-                    })
-                    .map((user) => {
-                      const hasIncomingRequests = incomingRequests && incomingRequests.length > 0;
-                      const isDisabled = hasIncomingRequests;
+                {room?.windingDownStartedAt ? (
+                  <div className="text-center py-8">
+                    <div className="text-4xl mb-2">⏰</div>
+                    <p className="text-lg text-gray-600">
+                      Session ending - no new groups can be formed
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-4">
+                    {[...availableUsers]
+                      .sort((a, b) => {
+                        const nameA = getEmojiName(a.avatar);
+                        const nameB = getEmojiName(b.avatar);
+                        return nameA.localeCompare(nameB);
+                      })
+                      .map((user) => {
+                        const hasIncomingRequests = incomingRequests && incomingRequests.length > 0;
+                        const isDisabled = hasIncomingRequests;
 
-                      return (
-                        <motion.button
-                          key={user.id}
-                          whileTap={isDisabled ? {} : { scale: 0.95 }}
-                          onClick={() => {
-                            if (isDisabled) return;
-                            setSelectedUser(user.id);
-                            handleSendRequest(user.id);
-                          }}
-                          disabled={isDisabled}
-                          className={`aspect-square rounded-2xl flex flex-col items-center justify-center text-6xl transition-all ${
-                            isDisabled
-                              ? "bg-gray-100 border-4 border-gray-200 opacity-40 cursor-not-allowed"
-                              : selectedUser === user.id
-                              ? "bg-purple-500 shadow-xl ring-4 ring-purple-300"
-                              : "bg-white border-4 border-gray-200 hover:border-purple-300 hover:shadow-lg"
-                          }`}
-                        >
-                          <div>{user.avatar}</div>
-                          {user.groupSize > 0 && (
-                            <div className="text-xs mt-1 text-gray-600">
-                              {user.groupSize}/{room?.maxGroupSize || 4}
-                            </div>
-                          )}
-                        </motion.button>
-                      );
-                    })}
-                </div>
+                        return (
+                          <motion.button
+                            key={user.id}
+                            whileTap={isDisabled ? {} : { scale: 0.95 }}
+                            onClick={() => {
+                              if (isDisabled) return;
+                              setSelectedUser(user.id);
+                              handleSendRequest(user.id);
+                            }}
+                            disabled={isDisabled}
+                            className={`aspect-square rounded-2xl flex flex-col items-center justify-center text-6xl transition-all ${
+                              isDisabled
+                                ? "bg-gray-100 border-4 border-gray-200 opacity-40 cursor-not-allowed"
+                                : selectedUser === user.id
+                                ? "bg-purple-500 shadow-xl ring-4 ring-purple-300"
+                                : "bg-white border-4 border-gray-200 hover:border-purple-300 hover:shadow-lg"
+                            }`}
+                          >
+                            <div>{user.avatar}</div>
+                            {user.groupSize > 0 && (
+                              <div className="text-xs mt-1 text-gray-600">
+                                {user.groupSize}/{room?.maxGroupSize || 4}
+                              </div>
+                            )}
+                          </motion.button>
+                        );
+                      })}
+                  </div>
+                )}
               </>
             ) : (
               <div className="text-center py-8 text-gray-500">
@@ -661,6 +703,20 @@ export default function UserPage() {
           />
         )}
 
+        {/* Winding down warning banner */}
+        {room?.windingDownStartedAt && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="fixed inset-x-0 top-0 z-40 p-2"
+          >
+            <div className="bg-orange-500 text-white rounded-xl shadow-lg p-4 text-center max-w-md mx-auto">
+              <div className="font-bold text-lg">⏰ Session ending soon!</div>
+              <div className="text-sm">Finish your current activity</div>
+            </div>
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -688,7 +744,7 @@ export default function UserPage() {
                 {membersChosenA.length > 0 && (
                   <div className="flex gap-1 mt-2 flex-wrap justify-center">
                     {membersChosenA.map((member: any) => (
-                      <div key={member.id} className="text-3xl">
+                      <div key={member.id} className="text-5xl">
                         {member.avatar}
                       </div>
                     ))}
@@ -710,7 +766,7 @@ export default function UserPage() {
                 {membersChosenB.length > 0 && (
                   <div className="flex gap-1 mt-2 flex-wrap justify-center">
                     {membersChosenB.map((member: any) => (
-                      <div key={member.id} className="text-3xl">
+                      <div key={member.id} className="text-5xl">
                         {member.avatar}
                       </div>
                     ))}

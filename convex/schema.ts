@@ -9,6 +9,7 @@ export default defineSchema({
     phase1Active: v.boolean(),
     phase1Duration: v.number(), // in seconds
     phase1StartedAt: v.optional(v.number()),
+    windingDownStartedAt: v.optional(v.number()), // When winding down period begins
     maxGroupSize: v.number(), // Maximum users per group (default 4)
     createdAt: v.number(),
     expiresAt: v.number(), // Room expires after 7 days
