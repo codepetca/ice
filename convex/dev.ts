@@ -22,3 +22,29 @@ export const clearAllData = mutation({
     };
   },
 });
+
+export const clearUserData = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // Clear only user-generated data (keep questions)
+    const tables = ["answers", "groupRequests", "groups", "users", "rooms"];
+
+    let totalDeleted = 0;
+    const deletedByTable: Record<string, number> = {};
+
+    for (const tableName of tables) {
+      const records = await ctx.db.query(tableName as any).collect();
+      deletedByTable[tableName] = records.length;
+      for (const record of records) {
+        await ctx.db.delete(record._id);
+        totalDeleted++;
+      }
+    }
+
+    return {
+      message: "Cleared user data (kept questions)",
+      documentsDeleted: totalDeleted,
+      breakdown: deletedByTable
+    };
+  },
+});
