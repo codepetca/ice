@@ -655,7 +655,7 @@ function UserPageContent() {
                               handleSendRequest(user.id);
                             }}
                             disabled={isDisabled}
-                            className={`aspect-square rounded-2xl flex flex-col items-center justify-center text-6xl transition-all ${
+                            className={`aspect-square rounded-2xl flex flex-col items-center justify-center text-6xl transition-all relative ${
                               isDisabled
                                 ? "bg-gray-100 border-4 border-gray-200 opacity-40 cursor-not-allowed"
                                 : selectedUser === user.id
@@ -663,11 +663,20 @@ function UserPageContent() {
                                 : "bg-white border-4 border-gray-200 hover:border-purple-300 hover:shadow-lg"
                             }`}
                           >
-                            <div>{user.avatar}</div>
-                            {user.groupSize > 0 && (
-                              <div className="text-xs mt-1 text-gray-600">
-                                {user.groupSize}/{room?.maxGroupSize || 4}
+                            {selectedUser === user.id ? (
+                              <div className="flex flex-col items-center">
+                                <div className="text-4xl mb-1">🔄</div>
+                                <div className="text-xs text-white font-semibold">Sending...</div>
                               </div>
+                            ) : (
+                              <>
+                                <div>{user.avatar}</div>
+                                {user.groupSize > 0 && (
+                                  <div className="text-xs mt-1 text-gray-600">
+                                    {user.groupSize}/{room?.maxGroupSize || 4}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </motion.button>
                         );
@@ -785,11 +794,11 @@ function UserPageContent() {
           </div>
 
           <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("A")}
-                className={`aspect-square rounded-3xl flex flex-col items-center justify-center p-6 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition ${
+                className={`sm:aspect-square rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition ${
                   myAnswer === "A" ? "ring-4 ring-purple-300" : ""
                 }`}
               >
@@ -811,7 +820,7 @@ function UserPageContent() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("B")}
-                className={`aspect-square rounded-3xl flex flex-col items-center justify-center p-6 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition ${
+                className={`sm:aspect-square rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition ${
                   myAnswer === "B" ? "ring-4 ring-blue-300" : ""
                 }`}
               >

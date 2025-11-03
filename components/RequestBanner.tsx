@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Check } from "lucide-react";
 
@@ -27,10 +28,26 @@ export function RequestBanner({
   onReject,
   intrusive = true,
 }: RequestBannerProps) {
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
   if (requests.length === 0) return null;
 
   // Show only the most recent request
   const request = requests[0];
+
+  const handleAccept = async (requestId: string) => {
+    setProcessingId(requestId);
+    await onAccept(requestId);
+    // Keep processing state until request disappears from list
+  };
+
+  const handleReject = async (requestId: string) => {
+    setProcessingId(requestId);
+    await onReject(requestId);
+    // Keep processing state until request disappears from list
+  };
+
+  const isProcessing = processingId === request.requestId;
 
   if (intrusive) {
     // Full screen modal style for waiting/browsing phase
@@ -50,22 +67,31 @@ export function RequestBanner({
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => onReject(request.requestId)}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 px-6 rounded-xl text-xl transition-colors flex items-center justify-center gap-2"
-              >
-                <X size={24} />
-                Decline
-              </button>
-              <button
-                onClick={() => onAccept(request.requestId)}
-                className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-xl text-xl transition-colors flex items-center justify-center gap-2"
-              >
-                <Check size={24} />
-                Accept
-              </button>
-            </div>
+            {isProcessing ? (
+              <div className="text-center py-4">
+                <div className="text-4xl mb-2">🔄</div>
+                <p className="text-gray-600 font-semibold">Processing...</p>
+              </div>
+            ) : (
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => handleReject(request.requestId)}
+                  disabled={isProcessing}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 px-6 rounded-xl text-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <X size={24} />
+                  Decline
+                </button>
+                <button
+                  onClick={() => handleAccept(request.requestId)}
+                  disabled={isProcessing}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-xl text-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Check size={24} />
+                  Accept
+                </button>
+              </div>
+            )}
 
             {requests.length > 1 && (
               <div className="text-center mt-4 text-sm text-gray-500">
@@ -101,22 +127,31 @@ export function RequestBanner({
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={() => onReject(request.requestId)}
-                className="bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-1"
-              >
-                <X size={16} />
-                No
-              </button>
-              <button
-                onClick={() => onAccept(request.requestId)}
-                className="bg-white text-blue-500 hover:bg-blue-50 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-1"
-              >
-                <Check size={16} />
-                Accept
-              </button>
-            </div>
+            {isProcessing ? (
+              <div className="flex items-center gap-2">
+                <div className="text-2xl">🔄</div>
+                <span className="text-sm font-semibold">Processing...</span>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleReject(request.requestId)}
+                  disabled={isProcessing}
+                  className="bg-white/20 hover:bg-white/30 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-1 disabled:opacity-50"
+                >
+                  <X size={16} />
+                  No
+                </button>
+                <button
+                  onClick={() => handleAccept(request.requestId)}
+                  disabled={isProcessing}
+                  className="bg-white text-blue-500 hover:bg-blue-50 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-1 disabled:opacity-50"
+                >
+                  <Check size={16} />
+                  Accept
+                </button>
+              </div>
+            )}
           </div>
         </motion.div>
       </AnimatePresence>
