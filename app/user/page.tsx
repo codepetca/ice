@@ -549,7 +549,6 @@ function UserPageContent() {
           >
             <div className="bg-orange-500 text-white rounded-xl shadow-lg p-4 text-center max-w-md mx-auto">
               <div className="font-bold text-lg">⏰ Session ending soon!</div>
-              <div className="text-sm">Finish your current activity</div>
             </div>
           </motion.div>
         )}
@@ -572,14 +571,7 @@ function UserPageContent() {
                 <h3 className="text-2xl font-semibold text-gray-700">
                   Join a group
                 </h3>
-                {room?.windingDownStartedAt ? (
-                  <div className="text-center py-8">
-                    <div className="text-4xl mb-2">⏰</div>
-                    <p className="text-lg text-gray-600">
-                      Session ending - no new groups can be formed
-                    </p>
-                  </div>
-                ) : (
+                {!room?.windingDownStartedAt && (
                   <>
                     {/* Search/Filter Box */}
                     <div className="mb-4 relative">
@@ -777,7 +769,6 @@ function UserPageContent() {
           >
             <div className="bg-orange-500 text-white rounded-xl shadow-lg p-4 text-center max-w-md mx-auto">
               <div className="font-bold text-lg">⏰ Session ending soon!</div>
-              <div className="text-sm">Finish your current activity</div>
             </div>
           </motion.div>
         )}
