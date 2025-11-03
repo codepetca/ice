@@ -92,10 +92,6 @@ export const EMOJI_NAMES: Record<string, string> = {
   "🎈": "balloon", "🎉": "party", "🎁": "gift", "💎": "gem", "👑": "crown",
   "🎪": "circus", "🏆": "trophy", "🥇": "medal",
   "🔔": "bell", "🎀": "bow", "💝": "heart", "🌟": "star-glow", "✨": "sparkle", "🎵": "music",
-
-  // Duplicate entries for emojis without variation selectors (for compatibility)
-  "🕷": "spider", "⛸": "skate", "☀": "sun", "⛅": "cloud",
-  "❄": "snowflake", "☃": "snowman", "⚡": "lightning",
 };
 
 // Get emoji name for sorting/display

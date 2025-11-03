@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMachine } from "@xstate/react";
 import { useMutation, useQuery } from "convex/react";
@@ -13,7 +13,7 @@ import { useToast } from "@/components/Toast";
 import { RequestBanner } from "@/components/RequestBanner";
 import { getRandomAvatars, getEmojiName } from "@/lib/avatars";
 
-export default function UserPage() {
+function UserPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { showToast } = useToast();
@@ -951,4 +951,17 @@ export default function UserPage() {
   }
 
   return null;
+}
+
+export default function UserPage() {
+  return (
+    <Suspense fallback={
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-blue-50 to-white">
+        <div className="text-6xl">🔄</div>
+        <p className="text-xl text-gray-600 mt-4">Loading...</p>
+      </main>
+    }>
+      <UserPageContent />
+    </Suspense>
+  );
 }
