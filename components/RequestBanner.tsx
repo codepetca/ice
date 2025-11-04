@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Check } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 interface IncomingRequest {
   requestId: string;
@@ -68,9 +69,8 @@ export function RequestBanner({
             </div>
 
             {isProcessing ? (
-              <div className="text-center py-4">
-                <div className="text-4xl mb-2">🔄</div>
-                <p className="text-gray-600 font-semibold">Processing...</p>
+              <div className="flex justify-center py-4">
+                <LoadingSpinner size="md" />
               </div>
             ) : (
               <div className="flex gap-3 mt-6">
@@ -128,9 +128,8 @@ export function RequestBanner({
             </div>
 
             {isProcessing ? (
-              <div className="flex items-center gap-2">
-                <div className="text-2xl">🔄</div>
-                <span className="text-sm font-semibold">Processing...</span>
+              <div className="flex items-center">
+                <LoadingSpinner size="sm" color="border-white/40 border-t-white" />
               </div>
             ) : (
               <div className="flex gap-2">

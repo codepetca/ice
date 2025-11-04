@@ -18,22 +18,23 @@ interface ToastContextType {
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toast, setToast] = useState<Toast | null>(null);
 
   const showToast = (message: string, type: ToastType = "info") => {
     const id = Math.random().toString(36).substring(7);
     const newToast = { id, message, type };
 
-    setToasts((prev) => [...prev, newToast]);
+    // Replace any existing toast with the new one
+    setToast(newToast);
 
     // Auto-dismiss after 4 seconds
     setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+      setToast((current) => (current?.id === id ? null : current));
     }, 4000);
   };
 
-  const removeToast = (id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  const removeToast = () => {
+    setToast(null);
   };
 
   const getToastStyles = (type: ToastType) => {
@@ -71,9 +72,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
 
       {/* Toast Container */}
-      <div className="fixed top-4 inset-x-0 z-50 flex flex-col gap-3 items-center pointer-events-none px-4">
+      <div className="fixed top-4 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
         <AnimatePresence>
-          {toasts.map((toast) => (
+          {toast && (
             <motion.div
               key={toast.id}
               initial={{ opacity: 0, y: -20, scale: 0.95 }}
@@ -82,21 +83,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               className={`${getToastStyles(
                 toast.type
               )} px-6 py-4 rounded-2xl shadow-xl flex items-center gap-4 min-w-[320px] max-w-md pointer-events-auto`}
-              onClick={() => removeToast(toast.id)}
+              onClick={removeToast}
             >
               <span className="text-3xl">{getToastIcon(toast.type)}</span>
               <p className="flex-1 text-base font-semibold">{toast.message}</p>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  removeToast(toast.id);
+                  removeToast();
                 }}
                 className="text-white/80 hover:text-white text-2xl leading-none"
               >
                 ×
               </button>
             </motion.div>
-          ))}
+          )}
         </AnimatePresence>
       </div>
     </ToastContext.Provider>

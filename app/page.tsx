@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useToast } from "@/components/Toast";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 export default function Home() {
   const { showToast } = useToast();
@@ -159,10 +160,9 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-center space-y-2"
+              className="flex justify-center"
             >
-              <div className="text-4xl">🔄</div>
-              <p className="text-gray-600">Joining room...</p>
+              <LoadingSpinner size="sm" />
             </motion.div>
           )}
         </div>
