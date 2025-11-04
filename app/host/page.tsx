@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { getEmojiName } from "@/lib/avatars";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 const ROOM_STORAGE_KEY = "ice-host-room";
 
@@ -59,6 +60,13 @@ export default function HostPage() {
   const seedQuestions = useMutation(api.questions.seedQuestions);
   const removeUser = useMutation(api.users.removeUser);
 
+  // Phase 2 mutations
+  const generateGame = useMutation(api.games.generateGame);
+  const startGame = useMutation(api.games.startGame);
+  const revealRound = useMutation(api.games.revealRound);
+  const advanceRound = useMutation(api.games.advanceRound);
+  const endGame = useMutation(api.games.endGame);
+
   // Query to validate saved room on mount
   const savedRoomQuery = useQuery(
     api.rooms.getRoomById,
@@ -78,6 +86,27 @@ export default function HostPage() {
   const roomUsers = useQuery(
     api.users.getRoomUsers,
     roomId ? { roomId: roomId as Id<"rooms"> } : "skip"
+  );
+
+  // Phase 2 queries
+  const game = useQuery(
+    api.games.getGameByRoom,
+    roomId ? { roomId: roomId as Id<"rooms"> } : "skip"
+  );
+
+  const gameState = useQuery(
+    api.games.getGameState,
+    game ? { gameId: game._id } : "skip"
+  );
+
+  const currentRound = useQuery(
+    api.games.getCurrentRound,
+    game ? { gameId: game._id } : "skip"
+  );
+
+  const leaderboard = useQuery(
+    api.games.getLeaderboard,
+    game ? { gameId: game._id } : "skip"
   );
 
   // Load saved room from localStorage on mount
@@ -228,6 +257,66 @@ export default function HostPage() {
     }
   };
 
+  // Phase 2 handlers
+  const handleLaunchPhase2 = async () => {
+    if (!roomId) return;
+
+    try {
+      showToast("Generating questions...", "info");
+      const result = await generateGame({ roomId: roomId as Id<"rooms"> });
+      await startGame({ gameId: result.gameId });
+      showToast(`Phase 2 started with ${result.totalRounds} questions!`, "success");
+    } catch (error: any) {
+      showToast(error.message, "error");
+    }
+  };
+
+  const handleRevealResults = async () => {
+    if (!game) return;
+
+    try {
+      await revealRound({ gameId: game._id });
+      showToast("Results revealed!", "success");
+    } catch (error: any) {
+      showToast(error.message, "error");
+    }
+  };
+
+  const handleNextQuestion = async () => {
+    if (!game) return;
+
+    try {
+      await advanceRound({ gameId: game._id });
+      if (gameState?.game && gameState.game.currentRound >= gameState.game.totalRounds) {
+        showToast("Game completed!", "success");
+      } else {
+        showToast("Next question!", "success");
+      }
+    } catch (error: any) {
+      showToast(error.message, "error");
+    }
+  };
+
+  const handleEndPhase2 = async () => {
+    if (!game) return;
+
+    const confirmed = await showConfirm({
+      title: "End Phase 2?",
+      message: "This will end the game and show the final leaderboard.",
+      confirmText: "End Game",
+      cancelText: "Cancel",
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await endGame({ gameId: game._id });
+      showToast("Phase 2 ended!", "success");
+    } catch (error: any) {
+      showToast(error.message, "error");
+    }
+  };
+
   // Create view
   if (view === "create") {
     // Show loading state while validating saved room
@@ -237,10 +326,8 @@ export default function HostPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center space-y-6"
           >
-            <div className="text-6xl">🔄</div>
-            <p className="text-xl text-gray-600">Checking saved room...</p>
+            <LoadingSpinner size="lg" color="border-green-200 border-t-green-600" />
           </motion.div>
         </main>
       );
@@ -428,13 +515,13 @@ export default function HostPage() {
   if (view === "manage" && room) {
     // Calculate winding down progress
     const windingDownElapsed = room.windingDownStartedAt
-      ? Math.floor((currentTime - room.windingDownStartedAt) / 1000)
+      ? Math.max(0, Math.floor((currentTime - room.windingDownStartedAt) / 1000))
       : 0;
     const windingDownRemaining = Math.max(0, 15 - windingDownElapsed);
 
     // Use winding down time if in winding down mode, otherwise use normal time
     const timeElapsed = room.phase1StartedAt && room.phase1Active
-      ? Math.floor((currentTime - room.phase1StartedAt) / 1000)
+      ? Math.max(0, Math.floor((currentTime - room.phase1StartedAt) / 1000))
       : 0;
     const normalTimeRemaining = Math.max(0, room.phase1Duration - timeElapsed);
 
@@ -502,10 +589,6 @@ export default function HostPage() {
           {/* Room Users List */}
           {roomUsers && roomUsers.length > 0 && (
             <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                Users in Room
-              </h3>
-
               {/* Search/Filter Box */}
               <div className="mb-4 relative">
                 <svg
@@ -585,6 +668,172 @@ export default function HostPage() {
                     </div>
                   ))}
               </div>
+            </div>
+          )}
+
+          {/* Phase 2 Section */}
+          {!room.phase1Active && !room.windingDownStartedAt && (
+            <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900">Phase 2: Summary Game</h2>
+
+              {!game || game.status === "not_started" ? (
+                <div className="space-y-4">
+                  <p className="text-gray-600">
+                    Generate questions based on Phase 1 responses and let participants vote on the class data!
+                  </p>
+                  <button
+                    onClick={handleLaunchPhase2}
+                    className="w-full px-8 py-4 text-xl font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-700 transition"
+                  >
+                    Launch Phase 2
+                  </button>
+                </div>
+              ) : game.status === "in_progress" && currentRound ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-600">
+                      Question {gameState?.game?.currentRound} of {gameState?.game?.totalRounds}
+                    </div>
+                    <button
+                      onClick={handleEndPhase2}
+                      className="text-sm text-red-600 hover:text-red-700 underline"
+                    >
+                      End Game
+                    </button>
+                  </div>
+
+                  {/* Current Question */}
+                  <div className="bg-purple-50 rounded-xl p-6">
+                    <div className="text-lg font-semibold text-purple-900 mb-4">
+                      {currentRound.round.questionText}
+                    </div>
+
+                    {/* Vote Counts */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 text-center font-bold text-purple-600">A) ≥50%</div>
+                        <div className="flex-1 bg-purple-200 rounded-full h-8 relative overflow-hidden">
+                          <div
+                            className="bg-purple-600 h-full transition-all duration-500"
+                            style={{
+                              width: `${currentRound.voteCounts.total > 0 ? (currentRound.voteCounts.A / currentRound.voteCounts.total) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="w-16 text-right font-bold text-purple-900">
+                          {currentRound.voteCounts.A}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 text-center font-bold text-blue-600">B) &lt;50%</div>
+                        <div className="flex-1 bg-blue-200 rounded-full h-8 relative overflow-hidden">
+                          <div
+                            className="bg-blue-600 h-full transition-all duration-500"
+                            style={{
+                              width: `${currentRound.voteCounts.total > 0 ? (currentRound.voteCounts.B / currentRound.voteCounts.total) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="w-16 text-right font-bold text-blue-900">
+                          {currentRound.voteCounts.B}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Vote Progress */}
+                    <div className="mt-4 text-center text-sm text-gray-600">
+                      {currentRound.voteCounts.total} / {roomUsers?.length || 0} voted
+                    </div>
+
+                    {/* Reveal Section */}
+                    {currentRound.round.revealedAt && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mt-6 p-4 bg-white rounded-xl border-2 border-purple-300"
+                      >
+                        <div className="text-center">
+                          <div className="text-sm text-gray-600 mb-1">Actual Percentage:</div>
+                          <div className="text-3xl font-bold text-purple-600">
+                            {currentRound.round.actualPercentage.toFixed(1)}%
+                          </div>
+                          <div className="text-sm text-gray-600 mt-2">
+                            Correct Answer: <span className="font-bold">{currentRound.round.correctAnswer}) {currentRound.round.correctAnswer === "A" ? "≥50%" : "<50%"}</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Control Buttons */}
+                  <div className="flex gap-4">
+                    {!currentRound.round.revealedAt ? (
+                      <button
+                        onClick={handleRevealResults}
+                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-700 transition"
+                      >
+                        Reveal Results
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleNextQuestion}
+                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition"
+                      >
+                        {gameState?.game && gameState.game.currentRound >= gameState.game.totalRounds ? "View Leaderboard" : "Next Question"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : game.status === "completed" && leaderboard ? (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-purple-600 mb-2">🏆 Final Leaderboard</div>
+                    <p className="text-gray-600">Top performers in the Summary Game</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {leaderboard.map((entry, index) => (
+                      <motion.div
+                        key={entry.userId}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="flex items-center gap-4 bg-gradient-to-r from-purple-50 to-white rounded-xl p-4 border-2 border-purple-200"
+                      >
+                        <div className="text-3xl font-bold text-purple-600 w-12 text-center">
+                          #{entry.rank}
+                        </div>
+                        <div className="text-4xl">{entry.avatar}</div>
+                        <div className="flex-1">
+                          <div className="text-sm text-gray-600 capitalize">
+                            {getEmojiName(entry.avatar)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-gray-900">
+                            {entry.totalCorrect}/{entry.totalVotes}
+                          </div>
+                          <div className="text-xs text-gray-500">correct</div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem(ROOM_STORAGE_KEY);
+                      setRoomId(null);
+                      setSavedRoom(null);
+                      setValidatedRoom(null);
+                      setView("create");
+                    }}
+                    className="w-full px-8 py-4 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition"
+                  >
+                    Create New Room
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </motion.div>

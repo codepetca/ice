@@ -108,4 +108,56 @@ export default defineSchema({
     .index("by_room_and_target", ["roomId", "targetId"])
     .index("by_expires_at", ["expiresAt"])
     .index("by_status", ["status"]),
+
+  // Phase 2: Summary Game tables
+  games: defineTable({
+    roomId: v.id("rooms"),
+    status: v.union(
+      v.literal("not_started"),
+      v.literal("in_progress"),
+      v.literal("completed")
+    ),
+    currentRound: v.number(), // Current round number (1-based)
+    totalRounds: v.number(), // Total number of rounds/questions
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_room", ["roomId"])
+    .index("by_status", ["status"]),
+
+  gameRounds: defineTable({
+    gameId: v.id("games"),
+    roundNumber: v.number(), // 1-based round number
+    questionId: v.id("questions"), // Original Phase 1 question
+    questionText: v.string(), // Generated Phase 2 question text
+    correctAnswer: v.string(), // "A" (≥50%) or "B" (<50%)
+    actualPercentage: v.number(), // Actual percentage who chose the tracked option
+    revealedAt: v.optional(v.number()),
+  })
+    .index("by_game", ["gameId"])
+    .index("by_game_and_round", ["gameId", "roundNumber"]),
+
+  votes: defineTable({
+    roundId: v.id("gameRounds"),
+    gameId: v.id("games"),
+    userId: v.id("users"),
+    choice: v.string(), // "A" or "B"
+    isCorrect: v.boolean(),
+    timestamp: v.number(),
+  })
+    .index("by_round", ["roundId"])
+    .index("by_game", ["gameId"])
+    .index("by_user", ["userId"])
+    .index("by_game_and_user", ["gameId", "userId"]),
+
+  scores: defineTable({
+    gameId: v.id("games"),
+    userId: v.id("users"),
+    totalCorrect: v.number(),
+    totalVotes: v.number(),
+    rank: v.optional(v.number()), // Final ranking (1-5 for leaderboard)
+  })
+    .index("by_game", ["gameId"])
+    .index("by_user", ["userId"])
+    .index("by_game_and_rank", ["gameId", "rank"]),
 });

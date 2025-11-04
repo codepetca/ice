@@ -21,6 +21,12 @@ export type UserContext = {
   myAnswer: string | null;
   talkingDuration: number; // seconds
   pendingRequestId: string | null;
+  // Phase 2 fields
+  gameId: string | null;
+  currentRoundNumber: number | null;
+  gameQuestion: string | null;
+  myVote: string | null;
+  myScore: number;
 };
 
 export type UserEvents =
@@ -32,7 +38,12 @@ export type UserEvents =
   | { type: "ALL_ANSWERED" }
   | { type: "TALKING_COMPLETE" }
   | { type: "LEAVE_GROUP" }
-  | { type: "SESSION_LOCKED" };
+  | { type: "SESSION_LOCKED" }
+  | { type: "START_PHASE2"; gameId: string; roundNumber: number; questionText: string }
+  | { type: "SUBMIT_VOTE"; choice: string }
+  | { type: "ROUND_REVEALED" }
+  | { type: "NEXT_ROUND"; roundNumber: number; questionText: string }
+  | { type: "GAME_COMPLETE" };
 
 export const userMachine = setup({
   types: {
@@ -75,6 +86,27 @@ export const userMachine = setup({
       question: null,
       myAnswer: null,
     }),
+    // Phase 2 actions
+    startPhase2: assign({
+      gameId: ({ event }) =>
+        event.type === "START_PHASE2" ? event.gameId : null,
+      currentRoundNumber: ({ event }) =>
+        event.type === "START_PHASE2" ? event.roundNumber : null,
+      gameQuestion: ({ event }) =>
+        event.type === "START_PHASE2" ? event.questionText : null,
+      myVote: null,
+    }),
+    setVote: assign({
+      myVote: ({ event }) =>
+        event.type === "SUBMIT_VOTE" ? event.choice : null,
+    }),
+    nextRound: assign({
+      currentRoundNumber: ({ event }) =>
+        event.type === "NEXT_ROUND" ? event.roundNumber : null,
+      gameQuestion: ({ event }) =>
+        event.type === "NEXT_ROUND" ? event.questionText : null,
+      myVote: null,
+    }),
   },
   guards: {},
 }).createMachine({
@@ -91,6 +123,12 @@ export const userMachine = setup({
     myAnswer: null,
     talkingDuration: 45, // 45 seconds default
     pendingRequestId: null,
+    // Phase 2 context
+    gameId: null,
+    currentRoundNumber: null,
+    gameQuestion: null,
+    myVote: null,
+    myScore: 0,
   },
   states: {
     not_joined: {
@@ -156,6 +194,36 @@ export const userMachine = setup({
       },
     },
     session_locked: {
+      on: {
+        START_PHASE2: {
+          target: "phase2_voting",
+          actions: "startPhase2",
+        },
+      },
+    },
+    phase2_voting: {
+      on: {
+        SUBMIT_VOTE: {
+          target: "phase2_waiting",
+          actions: "setVote",
+        },
+      },
+    },
+    phase2_waiting: {
+      on: {
+        ROUND_REVEALED: "phase2_reveal",
+      },
+    },
+    phase2_reveal: {
+      on: {
+        NEXT_ROUND: {
+          target: "phase2_voting",
+          actions: "nextRound",
+        },
+        GAME_COMPLETE: "phase2_complete",
+      },
+    },
+    phase2_complete: {
       type: "final",
     },
   },
