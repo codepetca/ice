@@ -117,6 +117,16 @@ export const getRoomById = query({
   },
 });
 
+export const getRoomByPin = query({
+  args: { pin: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("rooms")
+      .withIndex("by_pin", (q) => q.eq("pin", args.pin))
+      .first();
+  },
+});
+
 export const startPhase1 = mutation({
   args: {
     roomId: v.id("rooms"),

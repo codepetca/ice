@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { getEmojiName } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { SlideshowQuestion } from "@/components/SlideshowQuestion";
 
 const ROOM_STORAGE_KEY = "ice-host-room";
 
@@ -53,6 +54,10 @@ export default function HostPage() {
   const [userSearch, setUserSearch] = useState("");
   const [validatingSavedRoom, setValidatingSavedRoom] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [joinPin, setJoinPin] = useState("");
+  const [usersExpanded, setUsersExpanded] = useState(true);
+  const [presentationMode, setPresentationMode] = useState<"admin" | "fullscreen">("admin");
+  const [phase2Mode, setPhase2Mode] = useState<"game" | "slideshow">("game");
 
   const createRoom = useMutation(api.rooms.createRoom);
   const startPhase1 = useMutation(api.rooms.startPhase1);
@@ -109,6 +114,11 @@ export default function HostPage() {
     game ? { gameId: game._id } : "skip"
   );
 
+  const roomByPin = useQuery(
+    api.rooms.getRoomByPin,
+    joinPin.length === 4 ? { pin: joinPin } : "skip"
+  );
+
   // Load saved room from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(ROOM_STORAGE_KEY);
@@ -160,6 +170,32 @@ export default function HostPage() {
       }
     }
   }, [room, currentTime, roomId, pin]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-reveal results after 6 seconds
+  useEffect(() => {
+    if (game && game.status === "in_progress" && currentRound && !currentRound.round.revealedAt) {
+      const revealTimer = setTimeout(async () => {
+        try {
+          await revealRound({ gameId: game._id });
+        } catch (err) {
+          console.error("Auto-reveal error:", err);
+        }
+      }, 6000); // 6 seconds
+
+      return () => clearTimeout(revealTimer);
+    }
+  }, [game, currentRound]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-advance slides 6 seconds after reveal (12 seconds total)
+  useEffect(() => {
+    if (game && game.status === "in_progress" && currentRound?.round.revealedAt) {
+      const advanceTimer = setTimeout(async () => {
+        await handleNextSlide();
+      }, 6000); // 6 seconds after reveal
+
+      return () => clearTimeout(advanceTimer);
+    }
+  }, [game, currentRound?.round.revealedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreateRoom = async () => {
     try {
@@ -213,6 +249,32 @@ export default function HostPage() {
     setValidatedRoom(null);
   };
 
+  const handleJoinByPin = () => {
+    if (!roomByPin) {
+      showToast("Room not found with that PIN", "error");
+      return;
+    }
+
+    // Save to state
+    setRoomId(roomByPin._id);
+    setRoomCode(roomByPin.code);
+    setPin(joinPin);
+
+    // Save to localStorage
+    const roomData: SavedRoom = {
+      roomId: roomByPin._id,
+      roomCode: roomByPin.code,
+      pin: joinPin,
+      roomName: roomByPin.code,
+    };
+    localStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify(roomData));
+    setSavedRoom(roomData);
+    setValidatedRoom(roomData);
+
+    setView("manage");
+    showToast(`Joined room ${roomByPin.code}!`, "success");
+  };
+
   const handleStartPhase1 = async () => {
     if (!roomId || !pin) return;
 
@@ -258,62 +320,49 @@ export default function HostPage() {
   };
 
   // Phase 2 handlers
-  const handleLaunchPhase2 = async () => {
+
+  const handleNextSlide = async () => {
+    if (!game) return;
+
+    try {
+      // Always loop back to first slide after last slide
+      await advanceRound({ gameId: game._id, loop: true });
+    } catch (error: any) {
+      showToast(error.message, "error");
+    }
+  };
+
+  const handleToggleSlideshow = async () => {
     if (!roomId) return;
 
-    try {
-      showToast("Generating questions...", "info");
-      const result = await generateGame({ roomId: roomId as Id<"rooms"> });
-      await startGame({ gameId: result.gameId });
-      showToast(`Phase 2 started with ${result.totalRounds} questions!`, "success");
-    } catch (error: any) {
-      showToast(error.message, "error");
-    }
-  };
+    // If game exists and is in progress, stop it
+    if (game && game.status === "in_progress") {
+      const confirmed = await showConfirm({
+        title: "Stop Slideshow?",
+        message: "This will stop the presentation. You can restart it anytime.",
+        confirmText: "Stop",
+        cancelText: "Cancel",
+      });
 
-  const handleRevealResults = async () => {
-    if (!game) return;
+      if (!confirmed) return;
 
-    try {
-      await revealRound({ gameId: game._id });
-      showToast("Results revealed!", "success");
-    } catch (error: any) {
-      showToast(error.message, "error");
-    }
-  };
-
-  const handleNextQuestion = async () => {
-    if (!game) return;
-
-    try {
-      await advanceRound({ gameId: game._id });
-      if (gameState?.game && gameState.game.currentRound >= gameState.game.totalRounds) {
-        showToast("Game completed!", "success");
-      } else {
-        showToast("Next question!", "success");
+      try {
+        await endGame({ gameId: game._id });
+        showToast("Slideshow stopped!", "success");
+        setPresentationMode("admin"); // Exit fullscreen if in fullscreen
+      } catch (error: any) {
+        showToast(error.message, "error");
       }
-    } catch (error: any) {
-      showToast(error.message, "error");
-    }
-  };
-
-  const handleEndPhase2 = async () => {
-    if (!game) return;
-
-    const confirmed = await showConfirm({
-      title: "End Phase 2?",
-      message: "This will end the game and show the final leaderboard.",
-      confirmText: "End Game",
-      cancelText: "Cancel",
-    });
-
-    if (!confirmed) return;
-
-    try {
-      await endGame({ gameId: game._id });
-      showToast("Phase 2 ended!", "success");
-    } catch (error: any) {
-      showToast(error.message, "error");
+    } else {
+      // Start or restart the slideshow
+      try {
+        showToast("Starting slideshow...", "info");
+        const result = await generateGame({ roomId: roomId as Id<"rooms"> });
+        await startGame({ gameId: result.gameId });
+        showToast(`Slideshow started with ${result.totalRounds} slides!`, "success");
+      } catch (error: any) {
+        showToast(error.message, "error");
+      }
     }
   };
 
@@ -358,9 +407,9 @@ export default function HostPage() {
               <div className="text-right">
                 <button
                   onClick={() => setShowOptions(!showOptions)}
-                  className="text-sm text-gray-600 hover:text-gray-900 underline transition"
+                  className="text-sm text-gray-600 hover:text-gray-900 transition"
                 >
-                  {showOptions ? "Hide options" : "options"}
+                  Options
                 </button>
               </div>
 
@@ -416,6 +465,39 @@ export default function HostPage() {
                       <option value={5}>5 people</option>
                       <option value={6}>6 people</option>
                     </select>
+                  </div>
+
+                  <hr className="border-t-2 border-gray-300" />
+
+                  {/* Join by PIN Section */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Join existing room
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={joinPin}
+                        onChange={(e) => setJoinPin(e.target.value.slice(0, 4))}
+                        placeholder="Enter 4-digit PIN"
+                        className="flex-1 px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none text-center tracking-widest"
+                        maxLength={4}
+                      />
+                      <button
+                        onClick={handleJoinByPin}
+                        disabled={joinPin.length !== 4 || !roomByPin}
+                        className={`px-6 py-4 text-lg font-semibold rounded-xl transition ${
+                          joinPin.length === 4 && roomByPin
+                            ? "bg-blue-600 hover:bg-blue-700 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        }`}
+                      >
+                        Join
+                      </button>
+                    </div>
+                    {joinPin.length === 4 && !roomByPin && roomByPin !== undefined && (
+                      <p className="text-sm text-red-600 mt-2">Room not found with that PIN</p>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -443,9 +525,9 @@ export default function HostPage() {
               <div className="text-right">
                 <button
                   onClick={() => setShowOptions(!showOptions)}
-                  className="text-sm text-gray-600 hover:text-gray-900 underline transition"
+                  className="text-sm text-gray-600 hover:text-gray-900 transition"
                 >
-                  {showOptions ? "Hide options" : "options"}
+                  Options
                 </button>
               </div>
 
@@ -501,6 +583,39 @@ export default function HostPage() {
                       <option value={5}>5 people</option>
                       <option value={6}>6 people</option>
                     </select>
+                  </div>
+
+                  <hr className="border-t-2 border-gray-300" />
+
+                  {/* Join by PIN Section */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Join existing room
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={joinPin}
+                        onChange={(e) => setJoinPin(e.target.value.slice(0, 4))}
+                        placeholder="Enter 4-digit PIN"
+                        className="flex-1 px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none text-center tracking-widest"
+                        maxLength={4}
+                      />
+                      <button
+                        onClick={handleJoinByPin}
+                        disabled={joinPin.length !== 4 || !roomByPin}
+                        className={`px-6 py-4 text-lg font-semibold rounded-xl transition ${
+                          joinPin.length === 4 && roomByPin
+                            ? "bg-blue-600 hover:bg-blue-700 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        }`}
+                      >
+                        Join
+                      </button>
+                    </div>
+                    {joinPin.length === 4 && !roomByPin && roomByPin !== undefined && (
+                      <p className="text-sm text-red-600 mt-2">Room not found with that PIN</p>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -529,12 +644,62 @@ export default function HostPage() {
     const minutes = Math.floor(timeRemaining / 60);
     const seconds = timeRemaining % 60;
 
+    if (presentationMode === "fullscreen" && game && game.status === "in_progress" && currentRound) {
+      // Render fullscreen presentation
+      return (
+        <div className="fixed inset-0 z-50 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white overflow-auto">
+          {/* Exit button */}
+          <button
+            onClick={() => setPresentationMode("admin")}
+            className="fixed top-4 right-4 z-50 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur rounded-lg transition-all duration-300 text-sm font-semibold"
+          >
+            Exit Fullscreen
+          </button>
+
+          <div className="min-h-screen p-12 flex flex-col">
+            {/* Question */}
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-full max-w-6xl space-y-12">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentRound.round.roundNumber}
+                    initial={{ opacity: 0, x: 100 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -100 }}
+                    transition={{
+                      duration: 0.6,
+                      ease: [0.4, 0.0, 0.2, 1]
+                    }}
+                    className="text-center"
+                  >
+                    {currentRound.questionData && (
+                      <SlideshowQuestion
+                        questionText={currentRound.questionData.text || currentRound.round.questionText}
+                        optionA={currentRound.questionData.optionA}
+                        optionB={currentRound.questionData.optionB}
+                        percentA={currentRound.questionData.percentA}
+                        percentB={currentRound.questionData.percentB}
+                        totalResponses={currentRound.questionData.totalResponses}
+                        isRevealed={!!currentRound.round.revealedAt}
+                        roundNumber={currentRound.round.roundNumber}
+                        variant="projector"
+                      />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-green-50 to-white">
+      <main className="min-h-screen p-8 bg-gradient-to-b from-green-50 to-white">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-2xl space-y-8"
+          className="w-full max-w-2xl mx-auto space-y-8"
         >
           <div className="text-center space-y-4">
             {/* Room Code Display */}
@@ -550,294 +715,247 @@ export default function HostPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
-
-            <div className="space-y-4">
-              <div className="text-center">
-                <div className={`text-4xl font-bold ${room.windingDownStartedAt ? 'text-orange-500' : 'text-gray-900'}`}>
-                  {minutes}:{seconds.toString().padStart(2, "0")}
-                </div>
-              </div>
+          {/* Game & Slideshow Tabs */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+              <button
+                onClick={() => setPhase2Mode("game")}
+                className={`flex-1 px-6 py-4 text-lg font-semibold transition ${
+                  phase2Mode === "game"
+                    ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                Game
+              </button>
+              <button
+                onClick={() => setPhase2Mode("slideshow")}
+                className={`flex-1 px-6 py-4 text-lg font-semibold transition ${
+                  phase2Mode === "slideshow"
+                    ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                Slideshow
+              </button>
             </div>
 
-            <div className="flex gap-4">
-              {!room.phase1Active ? (
-                <button
-                  onClick={handleStartPhase1}
-                  className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition"
-                >
-                  Start
-                </button>
-              ) : room.windingDownStartedAt ? (
-                <button
-                  disabled
-                  className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-gray-400 rounded-xl cursor-not-allowed"
-                >
-                  Stopping...
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleStopPhase1()}
-                  className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition"
-                >
-                  Stop
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Room Users List */}
-          {roomUsers && roomUsers.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              {/* Search/Filter Box */}
-              <div className="mb-4 relative">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <input
-                  type="text"
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="w-full pl-10 pr-10 py-3 text-lg border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
-                />
-                {userSearch && (
-                  <button
-                    onClick={() => setUserSearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {[...roomUsers]
-                  .sort((a, b) => {
-                    const nameA = getEmojiName(a.avatar);
-                    const nameB = getEmojiName(b.avatar);
-                    return nameA.localeCompare(nameB);
-                  })
-                  .filter((user) => {
-                    const userName = getEmojiName(user.avatar).toLowerCase();
-
-                    // Filter by search text
-                    if (userSearch && !userName.includes(userSearch.toLowerCase())) {
-                      return false;
-                    }
-
-                    return true;
-                  })
-                  .map((user) => (
-                    <div
-                      key={user.id}
-                      className="relative bg-gray-50 rounded-xl p-3 text-center group hover:bg-gray-100 transition"
-                    >
-                      <div className="text-4xl mb-1">{user.avatar}</div>
-                      <div className="text-xs text-gray-600 capitalize">
-                        {getEmojiName(user.avatar)}
-                      </div>
-                      <button
-                        onClick={() => handleRemoveUser(user.id)}
-                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold"
-                        title="Remove user"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          {/* Phase 2 Section */}
-          {!room.phase1Active && !room.windingDownStartedAt && (
-            <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900">Phase 2: Summary Game</h2>
-
-              {!game || game.status === "not_started" ? (
-                <div className="space-y-4">
-                  <p className="text-gray-600">
-                    Generate questions based on Phase 1 responses and let participants vote on the class data!
-                  </p>
-                  <button
-                    onClick={handleLaunchPhase2}
-                    className="w-full px-8 py-4 text-xl font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-700 transition"
-                  >
-                    Launch Phase 2
-                  </button>
-                </div>
-              ) : game.status === "in_progress" && currentRound ? (
+            {/* Tab Content */}
+            <div className="p-8 space-y-6">
+              {phase2Mode === "game" ? (
+                /* Game Mode Content - Phase 1 Timer & Controls */
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium text-gray-600">
-                      Question {gameState?.game?.currentRound} of {gameState?.game?.totalRounds}
+                  <div className="text-center">
+                    <div className={`text-4xl font-bold ${room.windingDownStartedAt ? 'text-orange-500' : 'text-gray-900'}`}>
+                      {minutes}:{seconds.toString().padStart(2, "0")}
                     </div>
-                    <button
-                      onClick={handleEndPhase2}
-                      className="text-sm text-red-600 hover:text-red-700 underline"
-                    >
-                      End Game
-                    </button>
                   </div>
 
-                  {/* Current Question */}
-                  <div className="bg-purple-50 rounded-xl p-6">
-                    <div className="text-lg font-semibold text-purple-900 mb-4">
-                      {currentRound.round.questionText}
-                    </div>
-
-                    {/* Vote Counts */}
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-16 text-center font-bold text-purple-600">A) ≥50%</div>
-                        <div className="flex-1 bg-purple-200 rounded-full h-8 relative overflow-hidden">
-                          <div
-                            className="bg-purple-600 h-full transition-all duration-500"
-                            style={{
-                              width: `${currentRound.voteCounts.total > 0 ? (currentRound.voteCounts.A / currentRound.voteCounts.total) * 100 : 0}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="w-16 text-right font-bold text-purple-900">
-                          {currentRound.voteCounts.A}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="w-16 text-center font-bold text-blue-600">B) &lt;50%</div>
-                        <div className="flex-1 bg-blue-200 rounded-full h-8 relative overflow-hidden">
-                          <div
-                            className="bg-blue-600 h-full transition-all duration-500"
-                            style={{
-                              width: `${currentRound.voteCounts.total > 0 ? (currentRound.voteCounts.B / currentRound.voteCounts.total) * 100 : 0}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="w-16 text-right font-bold text-blue-900">
-                          {currentRound.voteCounts.B}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Vote Progress */}
-                    <div className="mt-4 text-center text-sm text-gray-600">
-                      {currentRound.voteCounts.total} / {roomUsers?.length || 0} voted
-                    </div>
-
-                    {/* Reveal Section */}
-                    {currentRound.round.revealedAt && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="mt-6 p-4 bg-white rounded-xl border-2 border-purple-300"
-                      >
-                        <div className="text-center">
-                          <div className="text-sm text-gray-600 mb-1">Actual Percentage:</div>
-                          <div className="text-3xl font-bold text-purple-600">
-                            {currentRound.round.actualPercentage.toFixed(1)}%
-                          </div>
-                          <div className="text-sm text-gray-600 mt-2">
-                            Correct Answer: <span className="font-bold">{currentRound.round.correctAnswer}) {currentRound.round.correctAnswer === "A" ? "≥50%" : "<50%"}</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
-
-                  {/* Control Buttons */}
                   <div className="flex gap-4">
-                    {!currentRound.round.revealedAt ? (
+                    {!room.phase1Active ? (
                       <button
-                        onClick={handleRevealResults}
-                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-700 transition"
+                        onClick={handleStartPhase1}
+                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition"
                       >
-                        Reveal Results
+                        Start Game
+                      </button>
+                    ) : room.windingDownStartedAt ? (
+                      <button
+                        disabled
+                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-gray-400 rounded-xl cursor-not-allowed"
+                      >
+                        Stopping...
                       </button>
                     ) : (
                       <button
-                        onClick={handleNextQuestion}
-                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition"
+                        onClick={() => handleStopPhase1()}
+                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition"
                       >
-                        {gameState?.game && gameState.game.currentRound >= gameState.game.totalRounds ? "View Leaderboard" : "Next Question"}
+                        Stop Game
                       </button>
                     )}
                   </div>
                 </div>
-              ) : game.status === "completed" && leaderboard ? (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-600 mb-2">🏆 Final Leaderboard</div>
-                    <p className="text-gray-600">Top performers in the Summary Game</p>
-                  </div>
+              ) : (
+                  /* Slideshow Mode Content */
+                  <>
+                    {!game || game.status !== "in_progress" ? (
+                      <div className="space-y-4">
+                        <button
+                          onClick={handleToggleSlideshow}
+                          className="w-full px-8 py-4 text-xl font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-700 transition"
+                        >
+                          Start Slideshow
+                        </button>
+                      </div>
+                    ) : game.status === "in_progress" && currentRound ? (
+                      <div className="space-y-6">
+                        {/* Control Row */}
+                        <div className="flex items-center justify-between flex-wrap gap-4">
+                          <div className="text-sm font-medium text-gray-600">
+                            Slide {gameState?.game?.currentRound} of {gameState?.game?.totalRounds}
+                            {!currentRound.round.revealedAt && <span className="text-purple-600"> • Revealing in 6s...</span>}
+                            {currentRound.round.revealedAt && <span className="text-purple-600"> • Next slide in 6s...</span>}
+                          </div>
 
-                  <div className="space-y-3">
-                    {leaderboard.map((entry, index) => (
-                      <motion.div
-                        key={entry.userId}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="flex items-center gap-4 bg-gradient-to-r from-purple-50 to-white rounded-xl p-4 border-2 border-purple-200"
-                      >
-                        <div className="text-3xl font-bold text-purple-600 w-12 text-center">
-                          #{entry.rank}
-                        </div>
-                        <div className="text-4xl">{entry.avatar}</div>
-                        <div className="flex-1">
-                          <div className="text-sm text-gray-600 capitalize">
-                            {getEmojiName(entry.avatar)}
+                          <div className="flex items-center gap-3">
+                            {/* Fullscreen Toggle */}
+                            <button
+                              onClick={() => setPresentationMode(presentationMode === "admin" ? "fullscreen" : "admin")}
+                              className="px-4 py-2 text-sm font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                            >
+                              📺 Fullscreen
+                            </button>
+
+                            <button
+                              onClick={handleToggleSlideshow}
+                              className="px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                            >
+                              Stop
+                            </button>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-gray-900">
-                            {entry.totalCorrect}/{entry.totalVotes}
-                          </div>
-                          <div className="text-xs text-gray-500">correct</div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
 
-                  <button
-                    onClick={() => {
-                      localStorage.removeItem(ROOM_STORAGE_KEY);
-                      setRoomId(null);
-                      setSavedRoom(null);
-                      setValidatedRoom(null);
-                      setView("create");
-                    }}
-                    className="w-full px-8 py-4 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition"
-                  >
-                    Create New Room
-                  </button>
+                        {/* Admin Preview (only show when not in fullscreen) */}
+                        {presentationMode === "admin" && currentRound.questionData && (
+                          <div className="bg-purple-50 rounded-xl p-6">
+                            <SlideshowQuestion
+                              questionText={currentRound.questionData.text || currentRound.round.questionText}
+                              optionA={currentRound.questionData.optionA}
+                              optionB={currentRound.questionData.optionB}
+                              percentA={currentRound.questionData.percentA}
+                              percentB={currentRound.questionData.percentB}
+                              totalResponses={currentRound.questionData.totalResponses}
+                              isRevealed={!!currentRound.round.revealedAt}
+                              roundNumber={currentRound.round.roundNumber}
+                              variant="admin"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+
+          {/* Room Users List */}
+          {roomUsers && roomUsers.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+              {/* Collapsible Header */}
+              <button
+                onClick={() => setUsersExpanded(!usersExpanded)}
+                className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-semibold text-gray-900">Participants</span>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
+                    {roomUsers.length}
+                  </span>
                 </div>
-              ) : null}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`h-5 w-5 text-gray-400 transition-transform ${usersExpanded ? "rotate-180" : ""}`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {/* Expandable Content */}
+              {usersExpanded && (
+                <div className="px-6 pb-6">
+                  {/* Search/Filter Box */}
+                  <div className="mb-4 relative">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                    <input
+                      type="text"
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="w-full pl-10 pr-10 py-3 text-lg border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+                    />
+                    {userSearch && (
+                      <button
+                        onClick={() => setUserSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {[...roomUsers]
+                      .sort((a, b) => {
+                        const nameA = getEmojiName(a.avatar);
+                        const nameB = getEmojiName(b.avatar);
+                        return nameA.localeCompare(nameB);
+                      })
+                      .filter((user) => {
+                        const userName = getEmojiName(user.avatar).toLowerCase();
+
+                        // Filter by search text
+                        if (userSearch && !userName.includes(userSearch.toLowerCase())) {
+                          return false;
+                        }
+
+                        return true;
+                      })
+                      .map((user) => (
+                        <div
+                          key={user.id}
+                          className="relative bg-gray-50 rounded-xl p-3 text-center group hover:bg-gray-100 transition"
+                        >
+                          <div className="text-4xl mb-1">{user.avatar}</div>
+                          <div className="text-xs text-gray-600 capitalize">
+                            {getEmojiName(user.avatar)}
+                          </div>
+                          <button
+                            onClick={() => handleRemoveUser(user.id)}
+                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold"
+                            title="Remove user"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </motion.div>
-      </main>
+          </motion.div>
+        </main>
     );
   }
 

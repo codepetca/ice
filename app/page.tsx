@@ -34,8 +34,8 @@ export default function Home() {
         (input) => input === document.activeElement
       );
 
-      // If no input is focused and user types a valid consonant
-      if (!anyInputFocused && /^[BCDFGHJKLMNPQRSTVWXYZ]$/i.test(e.key)) {
+      // If no input is focused and user types a valid letter
+      if (!anyInputFocused && /^[A-Z]$/i.test(e.key)) {
         // Find first empty box
         const firstEmptyIndex = code.findIndex((c) => c === "");
         const targetIndex = firstEmptyIndex === -1 ? 0 : firstEmptyIndex;
@@ -69,12 +69,12 @@ export default function Home() {
 
   const handleInputChange = (index: number, value: string) => {
     const upperValue = value.toUpperCase();
-    // Only allow consonants (no vowels)
-    const consonantsOnly = upperValue.replace(/[^BCDFGHJKLMNPQRSTVWXYZ]/g, "");
+    // Allow any non-whitespace character
+    const validChars = upperValue.replace(/\s/g, "");
 
-    if (consonantsOnly.length > 0) {
+    if (validChars.length > 0) {
       const newCode = [...code];
-      newCode[index] = consonantsOnly[0]; // Take only first character
+      newCode[index] = validChars[0]; // Take only first character
       setCode(newCode);
 
       // Auto-focus next input
@@ -106,11 +106,11 @@ export default function Home() {
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const pastedText = e.clipboardData.getData("text").toUpperCase();
-    const consonantsOnly = pastedText.replace(/[^BCDFGHJKLMNPQRSTVWXYZ]/g, "");
+    const validChars = pastedText.replace(/\s/g, ""); // Remove whitespace
 
     const newCode = [...code];
-    for (let i = 0; i < Math.min(3, consonantsOnly.length); i++) {
-      newCode[i] = consonantsOnly[i];
+    for (let i = 0; i < Math.min(3, validChars.length); i++) {
+      newCode[i] = validChars[i];
     }
     setCode(newCode);
 

@@ -13,6 +13,7 @@ import { useToast } from "@/components/Toast";
 import { RequestBanner } from "@/components/RequestBanner";
 import { getRandomAvatars, getEmojiName } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { SlideshowQuestion } from "@/components/SlideshowQuestion";
 
 function UserPageContent() {
   const searchParams = useSearchParams();
@@ -198,7 +199,6 @@ function UserPageContent() {
         roundNumber: currentRound.round.roundNumber,
         questionText: currentRound.round.questionText,
       });
-      showToast("Phase 2 started!", "success");
     }
   }, [game, currentRound, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -253,14 +253,6 @@ function UserPageContent() {
       (state.matches("phase2_reveal") || state.matches("phase2_waiting") || state.matches("phase2_voting"))
     ) {
       send({ type: "GAME_COMPLETE" });
-      showToast("Game complete!", "success");
-
-      // Show confetti
-      confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.6 },
-      });
     }
   }, [game, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1100,259 +1092,62 @@ function UserPageContent() {
     );
   }
 
-  // Phase 2: Voting state
-  if (state.matches("phase2_voting")) {
-    const questionText = state.context.gameQuestion || currentRound?.round.questionText;
+  // Phase 2: Slideshow viewing (replaces voting, waiting, and reveal)
+  if (state.matches("phase2_voting") || state.matches("phase2_waiting") || state.matches("phase2_reveal")) {
+    const questionText = state.context.gameQuestion || currentRound?.questionData?.text || currentRound?.round.questionText;
     const roundNumber = state.context.currentRoundNumber || currentRound?.round.roundNumber;
     const totalRounds = gameState?.game?.totalRounds || 0;
+    const isRevealed = currentRound?.round.revealedAt;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-purple-50 to-white">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-2xl space-y-8"
-        >
-          <div className="text-center space-y-2">
-            <div className="text-sm font-semibold text-purple-600 uppercase tracking-wide">
-              Question {roundNumber} of {totalRounds}
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900">
-              {questionText}
-            </h2>
-          </div>
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-b from-purple-50 to-white">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={roundNumber}
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            transition={{
+              duration: 0.5,
+              ease: [0.4, 0.0, 0.2, 1]
+            }}
+            className="w-full max-w-2xl space-y-6"
+          >
+            {currentRound?.questionData && (
+              <SlideshowQuestion
+                questionText={questionText}
+                optionA={currentRound.questionData.optionA}
+                optionB={currentRound.questionData.optionB}
+                percentA={currentRound.questionData.percentA}
+                percentB={currentRound.questionData.percentB}
+                totalResponses={currentRound.questionData.totalResponses}
+                isRevealed={isRevealed}
+                roundNumber={roundNumber || 1}
+                variant="user"
+              />
+            )}
 
-          {/* Score Badge */}
-          {userScore && (
-            <div className="flex justify-center">
-              <div className="bg-white rounded-full px-6 py-2 shadow-lg border-2 border-purple-300">
-                <span className="text-lg font-semibold text-gray-900">
-                  Your Score: {userScore.totalCorrect}/{userScore.totalVotes}
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleSubmitVote("A")}
-              className="aspect-square rounded-3xl flex flex-col items-center justify-center p-8 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition"
-            >
-              <div className="text-6xl mb-4">A</div>
-              <div className="text-3xl">≥50%</div>
-            </motion.button>
-
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleSubmitVote("B")}
-              className="aspect-square rounded-3xl flex flex-col items-center justify-center p-8 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition"
-            >
-              <div className="text-6xl mb-4">B</div>
-              <div className="text-3xl">&lt;50%</div>
-            </motion.button>
-          </div>
-
-          {/* Vote Counts */}
-          {currentRound && (
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <div className="text-center text-sm text-gray-600 mb-3">
-                {currentRound.voteCounts.total} votes so far
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 text-center font-bold text-purple-600">A</div>
-                  <div className="flex-1 bg-purple-200 rounded-full h-6">
-                    <div
-                      className="bg-purple-600 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${currentRound.voteCounts.total > 0 ? (currentRound.voteCounts.A / currentRound.voteCounts.total) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <div className="w-12 text-right font-bold">{currentRound.voteCounts.A}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 text-center font-bold text-blue-600">B</div>
-                  <div className="flex-1 bg-blue-200 rounded-full h-6">
-                    <div
-                      className="bg-blue-600 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${currentRound.voteCounts.total > 0 ? (currentRound.voteCounts.B / currentRound.voteCounts.total) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <div className="w-12 text-right font-bold">{currentRound.voteCounts.B}</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </motion.div>
+          </motion.div>
+        </AnimatePresence>
       </main>
     );
   }
 
-  // Phase 2: Waiting for reveal
-  if (state.matches("phase2_waiting")) {
+  // Phase 2: Complete state - just show session ended
+  if (state.matches("phase2_complete")) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-purple-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-50 to-white">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="text-center space-y-6"
         >
-          <LoadingSpinner size="lg" color="border-purple-200 border-t-purple-600" />
-          <h2 className="text-3xl font-bold text-gray-900">
-            Waiting for results...
+          <div className="text-8xl">🔒</div>
+          <h2 className="text-4xl font-bold text-gray-900">
+            Session Ended
           </h2>
           <p className="text-xl text-gray-600">
-            Your vote has been recorded!
-          </p>
-        </motion.div>
-      </main>
-    );
-  }
-
-  // Phase 2: Reveal state
-  if (state.matches("phase2_reveal")) {
-    const myVote = state.context.myVote;
-    const isCorrect = myVote === currentRound?.round.correctAnswer;
-
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-purple-50 to-white">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-2xl space-y-8"
-        >
-          <div className="text-center space-y-4">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring" }}
-              className="text-9xl"
-            >
-              {isCorrect ? "✅" : "❌"}
-            </motion.div>
-            <h2 className="text-4xl font-bold text-gray-900">
-              {isCorrect ? "Correct!" : "Not quite!"}
-            </h2>
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white rounded-2xl p-8 shadow-xl text-center space-y-4"
-          >
-            <div className="text-sm text-gray-600">Actual Percentage:</div>
-            <div className="text-6xl font-bold text-purple-600">
-              {currentRound?.round.actualPercentage.toFixed(1)}%
-            </div>
-            <div className="text-lg text-gray-700">
-              Correct Answer: <span className="font-bold">{currentRound?.round.correctAnswer}) {currentRound?.round.correctAnswer === "A" ? "≥50%" : "<50%"}</span>
-            </div>
-          </motion.div>
-
-          {/* Updated Score */}
-          {userScore && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="bg-gradient-to-r from-purple-100 to-blue-100 rounded-2xl p-6 shadow-lg text-center"
-            >
-              <div className="text-2xl font-bold text-gray-900">
-                Your Score: {userScore.totalCorrect}/{userScore.totalVotes}
-              </div>
-            </motion.div>
-          )}
-
-          <div className="text-center text-sm text-gray-600">
-            Waiting for next question...
-          </div>
-        </motion.div>
-      </main>
-    );
-  }
-
-  // Phase 2: Complete state with leaderboard
-  if (state.matches("phase2_complete")) {
-    const myLeaderboardEntry = leaderboard?.find((entry) => entry.userId === state.context.userId);
-
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-purple-50 to-white">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-2xl space-y-8"
-        >
-          <div className="text-center space-y-4">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring" }}
-              className="text-9xl"
-            >
-              🏆
-            </motion.div>
-            <h2 className="text-4xl font-bold text-gray-900">
-              Game Complete!
-            </h2>
-          </div>
-
-          {/* User's Score */}
-          {userScore && (
-            <div className="bg-gradient-to-r from-purple-100 to-blue-100 rounded-2xl p-6 shadow-xl text-center">
-              <div className="text-sm text-gray-600 mb-2">Your Final Score</div>
-              <div className="text-5xl font-bold text-gray-900 mb-2">
-                {userScore.totalCorrect}/{userScore.totalVotes}
-              </div>
-              {myLeaderboardEntry && (
-                <div className="text-2xl font-semibold text-purple-600">
-                  Rank #{myLeaderboardEntry.rank}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Top 5 Leaderboard */}
-          {leaderboard && leaderboard.length > 0 && (
-            <div className="bg-white rounded-2xl p-6 shadow-xl space-y-4">
-              <h3 className="text-2xl font-bold text-center text-gray-900 mb-4">
-                🌟 Top 5 🌟
-              </h3>
-              <div className="space-y-3">
-                {leaderboard.map((entry, index) => (
-                  <motion.div
-                    key={entry.userId}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className={`flex items-center gap-4 p-4 rounded-xl ${
-                      entry.userId === state.context.userId
-                        ? "bg-gradient-to-r from-purple-200 to-blue-200 ring-2 ring-purple-400"
-                        : "bg-gray-50"
-                    }`}
-                  >
-                    <div className="text-2xl font-bold text-purple-600 w-8">
-                      #{entry.rank}
-                    </div>
-                    <div className="text-5xl">{entry.avatar}</div>
-                    <div className="flex-1">
-                      <div className="text-sm text-gray-600 capitalize">
-                        {getEmojiName(entry.avatar)}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-gray-900">
-                        {entry.totalCorrect}/{entry.totalVotes}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <p className="text-center text-gray-600">
-            Thanks for playing! 🎉
+            Thanks for participating!
           </p>
         </motion.div>
       </main>

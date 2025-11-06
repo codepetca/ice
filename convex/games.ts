@@ -3,16 +3,27 @@ import { mutation, query } from "./_generated/server";
 
 // Question generation algorithm for Phase 2
 // Takes Phase 1 answers and generates "What % of the class..." questions
-async function generateGameQuestions(
+// Helper function to determine which bucket a percentage falls into
+function getPercentageBucket(percentage: number): string {
+  if (percentage < 35) return "few";
+  if (percentage < 48) return "less";
+  if (percentage < 52) return "half";
+  if (percentage < 65) return "more";
+  return "most";
+}
+
+async function generateSlideshowQuestions(
   ctx: any,
   roomId: any
 ): Promise<
   Array<{
     questionId: any;
     questionText: string;
-    correctAnswer: string;
-    actualPercentage: number;
-    suspenseScore: number;
+    optionA: string;
+    optionB: string;
+    percentA: number;
+    percentB: number;
+    totalResponses: number;
   }>
 > {
   // Get all answers for this room
@@ -42,7 +53,7 @@ async function generateGameQuestions(
     answersByQuestion.get(key)!.push(answer);
   }
 
-  // Generate Phase 2 questions
+  // Generate slideshow questions
   const generatedQuestions = [];
 
   for (const [questionId, questionAnswers] of answersByQuestion.entries()) {
@@ -60,36 +71,25 @@ async function generateGameQuestions(
 
     if (total === 0) continue;
 
-    const percentA = (aCount / total) * 100;
-    const percentB = (bCount / total) * 100;
+    const percentA = Math.round((aCount / total) * 100);
+    const percentB = Math.round((bCount / total) * 100);
 
-    // Get question text
+    // Get question data
     const question = questionMap.get(questionId);
     if (!question) continue;
 
-    // Generate Phase 2 question text
-    // "What % of the class answered [Option A]?"
-    const questionText = `What % of the class answered "${(question as any).optionA}"?`;
-
-    // Determine correct answer
-    const correctAnswer = percentA >= 50 ? "A" : "B";
-
-    // Calculate suspense score (lower = more suspenseful, closer to 50%)
-    const suspenseScore = Math.abs(50 - percentA);
-
     generatedQuestions.push({
       questionId,
-      questionText,
-      correctAnswer,
-      actualPercentage: percentA,
-      suspenseScore,
+      questionText: (question as any).text,
+      optionA: (question as any).optionA,
+      optionB: (question as any).optionB,
+      percentA,
+      percentB,
+      totalResponses: total,
     });
   }
 
-  // Sort by suspense score (most suspenseful first)
-  generatedQuestions.sort((a, b) => a.suspenseScore - b.suspenseScore);
-
-  // Take top 8-12 questions (or all if less)
+  // Take up to 12 questions
   return generatedQuestions.slice(0, 12);
 }
 
@@ -110,11 +110,11 @@ export const generateGame = mutation({
     }
 
     // Generate questions
-    const questions = await generateGameQuestions(ctx, args.roomId);
+    const questions = await generateSlideshowQuestions(ctx, args.roomId);
 
     if (questions.length === 0) {
       throw new Error(
-        "Not enough data to generate Phase 2 questions. Need at least 60% response rate."
+        "Not enough data to generate slideshow. Need at least 60% response rate."
       );
     }
 
@@ -128,7 +128,7 @@ export const generateGame = mutation({
       completedAt: undefined,
     });
 
-    // Create rounds
+    // Create rounds with original question data and percentages
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       await ctx.db.insert("gameRounds", {
@@ -136,8 +136,8 @@ export const generateGame = mutation({
         roundNumber: i + 1,
         questionId: q.questionId,
         questionText: q.questionText,
-        correctAnswer: q.correctAnswer,
-        actualPercentage: q.actualPercentage,
+        correctAnswer: q.percentA >= q.percentB ? "A" : "B", // Winner is the one with higher percentage
+        actualPercentage: Math.max(q.percentA, q.percentB), // Highest percentage
         revealedAt: undefined,
       });
     }
@@ -264,10 +264,11 @@ export const revealRound = mutation({
   },
 });
 
-// Advance to the next round
+// Advance to the next round (with looping support)
 export const advanceRound = mutation({
   args: {
     gameId: v.id("games"),
+    loop: v.optional(v.boolean()), // If true, loop back to first slide instead of completing
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
@@ -288,26 +289,46 @@ export const advanceRound = mutation({
 
     // Check if this is the last round
     if (game.currentRound >= game.totalRounds) {
-      // End the game
-      await ctx.db.patch(args.gameId, {
-        status: "completed",
-        completedAt: Date.now(),
-      });
+      if (args.loop) {
+        // Loop back to first round
+        // First, un-reveal all rounds
+        const rounds = await ctx.db
+          .query("gameRounds")
+          .withIndex("by_game", (q) => q.eq("gameId", args.gameId))
+          .collect();
 
-      // Calculate final rankings
-      const scores = await ctx.db
-        .query("scores")
-        .withIndex("by_game", (q) => q.eq("gameId", args.gameId))
-        .collect();
+        for (const round of rounds) {
+          await ctx.db.patch(round._id, {
+            revealedAt: undefined,
+          });
+        }
 
-      // Sort by totalCorrect descending
-      scores.sort((a, b) => b.totalCorrect - a.totalCorrect);
-
-      // Assign ranks (only top 5)
-      for (let i = 0; i < Math.min(5, scores.length); i++) {
-        await ctx.db.patch(scores[i]._id, {
-          rank: i + 1,
+        // Reset to first round
+        await ctx.db.patch(args.gameId, {
+          currentRound: 1,
         });
+      } else {
+        // End the game
+        await ctx.db.patch(args.gameId, {
+          status: "completed",
+          completedAt: Date.now(),
+        });
+
+        // Calculate final rankings
+        const scores = await ctx.db
+          .query("scores")
+          .withIndex("by_game", (q) => q.eq("gameId", args.gameId))
+          .collect();
+
+        // Sort by totalCorrect descending
+        scores.sort((a, b) => b.totalCorrect - a.totalCorrect);
+
+        // Assign ranks (only top 5)
+        for (let i = 0; i < Math.min(5, scores.length); i++) {
+          await ctx.db.patch(scores[i]._id, {
+            rank: i + 1,
+          });
+        }
       }
     } else {
       // Advance to next round
@@ -386,7 +407,7 @@ export const getGameState = query({
   },
 });
 
-// Get current round with vote counts
+// Get current round with full question data and percentages
 export const getCurrentRound = query({
   args: { gameId: v.id("games") },
   handler: async (ctx, args) => {
@@ -402,21 +423,33 @@ export const getCurrentRound = query({
 
     if (!round) return null;
 
-    // Get vote counts
-    const votes = await ctx.db
-      .query("votes")
-      .withIndex("by_round", (q) => q.eq("roundId", round._id))
+    // Get original question to fetch optionA and optionB
+    const question = await ctx.db.get(round.questionId);
+
+    // Get all answers for this question in this room
+    const answers = await ctx.db
+      .query("answers")
+      .withIndex("by_room", (q) => q.eq("roomId", game.roomId))
+      .filter((q) => q.eq(q.field("questionId"), round.questionId))
       .collect();
 
-    const aVotes = votes.filter((v) => v.choice === "A").length;
-    const bVotes = votes.filter((v) => v.choice === "B").length;
+    const validAnswers = answers.filter((a) => !a.skipped);
+    const aCount = validAnswers.filter((a) => a.choice === "A").length;
+    const bCount = validAnswers.filter((a) => a.choice === "B").length;
+    const total = validAnswers.length;
+
+    const percentA = total > 0 ? Math.round((aCount / total) * 100) : 0;
+    const percentB = total > 0 ? Math.round((bCount / total) * 100) : 0;
 
     return {
       round,
-      voteCounts: {
-        A: aVotes,
-        B: bVotes,
-        total: votes.length,
+      questionData: {
+        text: question?.text || round.questionText,
+        optionA: (question as any)?.optionA || "Option A",
+        optionB: (question as any)?.optionB || "Option B",
+        percentA,
+        percentB,
+        totalResponses: total,
       },
     };
   },
@@ -434,15 +467,21 @@ export const getRoundVotes = query({
       .withIndex("by_round", (q) => q.eq("roundId", args.roundId))
       .collect();
 
-    const aVotes = votes.filter((v) => v.choice === "A").length;
-    const bVotes = votes.filter((v) => v.choice === "B").length;
+    const fewVotes = votes.filter((v) => v.choice === "few").length;
+    const lessVotes = votes.filter((v) => v.choice === "less").length;
+    const halfVotes = votes.filter((v) => v.choice === "half").length;
+    const moreVotes = votes.filter((v) => v.choice === "more").length;
+    const mostVotes = votes.filter((v) => v.choice === "most").length;
 
     return {
       round,
       votes,
       voteCounts: {
-        A: aVotes,
-        B: bVotes,
+        few: fewVotes,
+        less: lessVotes,
+        half: halfVotes,
+        more: moreVotes,
+        most: mostVotes,
         total: votes.length,
       },
     };

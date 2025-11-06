@@ -15,6 +15,7 @@ export default defineSchema({
     expiresAt: v.number(), // Room expires after 7 days
   })
     .index("by_code", ["code"])
+    .index("by_pin", ["pin"])
     .index("by_expires_at", ["expiresAt"]),
 
   users: defineTable({

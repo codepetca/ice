@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Id } from "@/convex/_generated/dataModel";
 import { Keypad } from "@/components/Keypad";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { SlideshowQuestion } from "@/components/SlideshowQuestion";
 
 export default function ProjectorPage() {
   const [roomCode, setClassCode] = useState("");
@@ -95,51 +96,23 @@ export default function ProjectorPage() {
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
 
-  // Phase 2 Completed - Show Leaderboard
-  if (game && game.status === "completed" && leaderboard) {
+  // Phase 2 Completed
+  if (game && game.status === "completed") {
     return (
       <main className="min-h-screen p-12 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
-        <div className="max-w-7xl mx-auto space-y-12">
-          {/* Header */}
+        <div className="max-w-7xl mx-auto space-y-12 flex items-center justify-center min-h-screen">
+          {/* Completion Message */}
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center space-y-6"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", duration: 0.8 }}
+            className="text-center space-y-8"
           >
-            <div className="text-9xl">🏆</div>
-            <h1 className="text-8xl font-bold">Final Results</h1>
-            <div className="text-3xl text-purple-200">
-              Room Code: <span className="font-bold text-white">{roomCode}</span>
+            <div className="text-9xl">✅</div>
+            <h1 className="text-8xl font-bold">Slideshow Complete!</h1>
+            <div className="text-4xl text-purple-200">
+              Thank you for participating
             </div>
-          </motion.div>
-
-          {/* Leaderboard */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
-          >
-            {leaderboard.map((entry, index) => (
-              <motion.div
-                key={entry.userId}
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.2 }}
-                className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 flex items-center gap-8"
-              >
-                <div className="text-6xl font-bold text-yellow-300 w-24 text-center">
-                  #{entry.rank}
-                </div>
-                <div className="text-8xl">{entry.avatar}</div>
-                <div className="flex-1">
-                  <div className="text-4xl font-semibold text-white">
-                    {entry.totalCorrect}/{entry.totalVotes}
-                  </div>
-                  <div className="text-2xl text-purple-200">correct</div>
-                </div>
-                {entry.rank === 1 && <div className="text-6xl">👑</div>}
-              </motion.div>
-            ))}
           </motion.div>
         </div>
 
@@ -160,114 +133,52 @@ export default function ProjectorPage() {
     );
   }
 
-  // Phase 2 In Progress
+  // Phase 2 Slideshow In Progress
   if (game && game.status === "in_progress" && currentRound) {
     return (
-      <main className="min-h-screen p-12 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
+      <main className="min-h-screen p-12 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center">
         <div className="max-w-7xl mx-auto space-y-12">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center space-y-4"
-          >
-            <div className="text-2xl text-purple-200 uppercase tracking-wider">
-              Phase 2: Summary Game
-            </div>
-            <h1 className="text-6xl font-bold">
-              Question {currentRound.round.roundNumber} of {game.totalRounds}
-            </h1>
-          </motion.div>
-
           {/* Question */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 text-center"
-          >
-            <div className="text-5xl font-bold mb-8">
-              {currentRound.round.questionText}
-            </div>
-          </motion.div>
-
-          {/* Vote Bars */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-8"
-          >
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 space-y-6">
-              <div className="flex items-center gap-6">
-                <div className="w-32 text-5xl font-bold text-purple-300">A) ≥50%</div>
-                <div className="flex-1 bg-purple-300/30 rounded-full h-24 relative overflow-hidden">
-                  <motion.div
-                    className="bg-gradient-to-r from-purple-500 to-purple-600 h-full flex items-center justify-end pr-8"
-                    initial={{ width: 0 }}
-                    animate={{
-                      width: `${currentRound.voteCounts.total > 0 ? (currentRound.voteCounts.A / currentRound.voteCounts.total) * 100 : 0}%`,
-                    }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                  >
-                    <span className="text-4xl font-bold">{currentRound.voteCounts.A}</span>
-                  </motion.div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-6">
-                <div className="w-32 text-5xl font-bold text-blue-300">B) &lt;50%</div>
-                <div className="flex-1 bg-blue-300/30 rounded-full h-24 relative overflow-hidden">
-                  <motion.div
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 h-full flex items-center justify-end pr-8"
-                    initial={{ width: 0 }}
-                    animate={{
-                      width: `${currentRound.voteCounts.total > 0 ? (currentRound.voteCounts.B / currentRound.voteCounts.total) * 100 : 0}%`,
-                    }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                  >
-                    <span className="text-4xl font-bold">{currentRound.voteCounts.B}</span>
-                  </motion.div>
-                </div>
-              </div>
-
-              <div className="text-center text-3xl text-purple-200 pt-4">
-                {currentRound.voteCounts.total} / {stats?.totalUsers || 0} votes
-              </div>
-            </div>
-
-            {/* Reveal Section */}
-            {currentRound.round.revealedAt && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring", duration: 0.8 }}
-                className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 backdrop-blur-lg rounded-3xl p-12 border-4 border-yellow-400"
-              >
-                <div className="text-center space-y-6">
-                  <div className="text-4xl text-yellow-300 uppercase tracking-wider">
-                    Actual Answer
-                  </div>
-                  <div className="text-9xl font-bold text-white">
-                    {currentRound.round.actualPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-5xl font-bold text-yellow-300">
-                    Correct: {currentRound.round.correctAnswer}) {currentRound.round.correctAnswer === "A" ? "≥50%" : "<50%"}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </motion.div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentRound.round.roundNumber}
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{
+                duration: 0.6,
+                ease: [0.4, 0.0, 0.2, 1] // Custom cubic-bezier for smooth easing
+              }}
+              className="text-center"
+            >
+              {currentRound.questionData && (
+                <SlideshowQuestion
+                  questionText={currentRound.questionData.text || currentRound.round.questionText}
+                  optionA={currentRound.questionData.optionA}
+                  optionB={currentRound.questionData.optionB}
+                  percentA={currentRound.questionData.percentA}
+                  percentB={currentRound.questionData.percentB}
+                  totalResponses={currentRound.questionData.totalResponses}
+                  isRevealed={!!currentRound.round.revealedAt}
+                  roundNumber={currentRound.round.roundNumber}
+                  variant="projector"
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* Disconnect button */}
         <motion.button
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
           onClick={() => {
             setConnected(false);
             setStoredClassCode(null);
             setClassCode("");
           }}
-          className="fixed bottom-8 right-8 px-6 py-3 text-lg bg-white/20 backdrop-blur hover:bg-white/30 rounded-xl transition"
+          className="fixed bottom-8 right-8 px-6 py-3 text-lg bg-white/20 backdrop-blur hover:bg-white/30 rounded-xl transition-all duration-300"
         >
           Disconnect
         </motion.button>
