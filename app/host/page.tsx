@@ -371,7 +371,7 @@ export default function HostPage() {
     // Show loading state while validating saved room
     if (validatingSavedRoom) {
       return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-green-50 to-white">
+        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -383,7 +383,7 @@ export default function HostPage() {
     }
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-green-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -398,7 +398,7 @@ export default function HostPage() {
             <div className="space-y-6">
               <button
                 onClick={handleCreateRoom}
-                className="w-full px-8 py-6 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition shadow-lg"
+                className="w-full px-8 py-6 text-xl font-semibold text-white bg-success text-white rounded-xl hover:opacity-90 transition shadow-lg"
               >
                 Create New Room
               </button>
@@ -488,7 +488,7 @@ export default function HostPage() {
                         disabled={joinPin.length !== 4 || !roomByPin}
                         className={`px-6 py-4 text-lg font-semibold rounded-xl transition ${
                           joinPin.length === 4 && roomByPin
-                            ? "bg-blue-600 hover:bg-blue-700 text-white"
+                            ? "bg-gradient-to-br from-primary-600 to-accent-600 hover:bg-blue-700 text-white"
                             : "bg-gray-300 text-gray-500 cursor-not-allowed"
                         }`}
                       >
@@ -516,7 +516,7 @@ export default function HostPage() {
             <div className="space-y-6">
               <button
                 onClick={handleCreateRoom}
-                className="w-full px-8 py-6 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition shadow-lg"
+                className="w-full px-8 py-6 text-xl font-semibold text-white bg-success text-white rounded-xl hover:opacity-90 transition shadow-lg"
               >
                 Create Room
               </button>
@@ -606,7 +606,7 @@ export default function HostPage() {
                         disabled={joinPin.length !== 4 || !roomByPin}
                         className={`px-6 py-4 text-lg font-semibold rounded-xl transition ${
                           joinPin.length === 4 && roomByPin
-                            ? "bg-blue-600 hover:bg-blue-700 text-white"
+                            ? "bg-gradient-to-br from-primary-600 to-accent-600 hover:bg-blue-700 text-white"
                             : "bg-gray-300 text-gray-500 cursor-not-allowed"
                         }`}
                       >
@@ -695,7 +695,7 @@ export default function HostPage() {
     }
 
     return (
-      <main className="min-h-screen p-8 bg-gradient-to-b from-green-50 to-white">
+      <main className="min-h-screen p-8 bg-background">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -707,7 +707,7 @@ export default function HostPage() {
               {roomCode.split('').map((letter, index) => (
                 <div
                   key={index}
-                  className="w-20 h-24 flex items-center justify-center text-5xl font-bold border-4 border-blue-300 rounded-2xl bg-blue-600 shadow-lg uppercase text-white"
+                  className="w-20 h-24 flex items-center justify-center text-5xl font-display font-bold border-2 border-border rounded-lg bg-primary text-primary-foreground shadow-sm uppercase"
                 >
                   {letter}
                 </div>
@@ -716,25 +716,25 @@ export default function HostPage() {
           </div>
 
           {/* Game & Slideshow Tabs */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+          <div className="rounded-lg shadow-sm border border-border overflow-hidden bg-muted/30">
             {/* Tabs */}
-            <div className="flex border-b border-gray-200">
+            <div className="flex gap-1">
               <button
                 onClick={() => setPhase2Mode("game")}
-                className={`flex-1 px-6 py-4 text-lg font-semibold transition ${
+                className={`flex-1 px-6 py-3 text-base font-display font-semibold transition-all ${
                   phase2Mode === "game"
-                    ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                    : "text-gray-600 hover:bg-gray-50"
+                    ? "bg-primary/20 text-primary rounded-tl-lg"
+                    : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-tl-lg"
                 }`}
               >
                 Game
               </button>
               <button
                 onClick={() => setPhase2Mode("slideshow")}
-                className={`flex-1 px-6 py-4 text-lg font-semibold transition ${
+                className={`flex-1 px-6 py-3 text-base font-display font-semibold transition-all ${
                   phase2Mode === "slideshow"
-                    ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
-                    : "text-gray-600 hover:bg-gray-50"
+                    ? "bg-primary/20 text-primary rounded-tr-lg"
+                    : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-tr-lg"
                 }`}
               >
                 Slideshow
@@ -742,12 +742,12 @@ export default function HostPage() {
             </div>
 
             {/* Tab Content */}
-            <div className="p-8 space-y-6">
+            <div className="p-8 pt-6 space-y-6 bg-primary/20 rounded-b-lg min-h-[200px]">
               {phase2Mode === "game" ? (
                 /* Game Mode Content - Phase 1 Timer & Controls */
                 <div className="space-y-6">
                   <div className="text-center">
-                    <div className={`text-4xl font-bold ${room.windingDownStartedAt ? 'text-orange-500' : 'text-gray-900'}`}>
+                    <div className={`text-4xl font-bold ${room.windingDownStartedAt ? 'text-orange-500' : 'text-foreground'}`}>
                       {minutes}:{seconds.toString().padStart(2, "0")}
                     </div>
                   </div>
@@ -756,7 +756,7 @@ export default function HostPage() {
                     {!room.phase1Active ? (
                       <button
                         onClick={handleStartPhase1}
-                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition"
+                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-success text-white rounded-xl hover:opacity-90 transition"
                       >
                         Start Game
                       </button>
@@ -784,7 +784,7 @@ export default function HostPage() {
                       <div className="space-y-4">
                         <button
                           onClick={handleToggleSlideshow}
-                          className="w-full px-8 py-4 text-xl font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-700 transition"
+                          className="w-full px-8 py-4 text-xl font-semibold text-white bg-success rounded-xl hover:opacity-90 transition"
                         >
                           Start Slideshow
                         </button>
@@ -803,7 +803,7 @@ export default function HostPage() {
                             {/* Fullscreen Toggle */}
                             <button
                               onClick={() => setPresentationMode(presentationMode === "admin" ? "fullscreen" : "admin")}
-                              className="px-4 py-2 text-sm font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                              className="px-4 py-2 text-sm font-semibold bg-gradient-to-r from-primary-500 to-accent-500 text-white rounded-lg hover:from-primary-600 hover:to-accent-600 transition"
                             >
                               📺 Fullscreen
                             </button>
@@ -842,21 +842,21 @@ export default function HostPage() {
 
           {/* Room Users List */}
           {roomUsers && roomUsers.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div className="bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
               {/* Collapsible Header */}
               <button
                 onClick={() => setUsersExpanded(!usersExpanded)}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
+                className="w-full px-6 py-4 flex items-center justify-between hover:bg-muted/50 transition"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-lg font-semibold text-gray-900">Participants</span>
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
+                  <span className="text-lg font-semibold text-foreground">Participants</span>
+                  <span className="px-3 py-1 bg-primary/20 text-primary rounded-full text-sm font-semibold">
                     {roomUsers.length}
                   </span>
                 </div>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className={`h-5 w-5 text-gray-400 transition-transform ${usersExpanded ? "rotate-180" : ""}`}
+                  className={`h-5 w-5 text-muted-foreground transition-transform ${usersExpanded ? "rotate-180" : ""}`}
                   viewBox="0 0 20 20"
                   fill="currentColor"
                 >
@@ -875,7 +875,7 @@ export default function HostPage() {
                   <div className="mb-4 relative">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -891,12 +891,12 @@ export default function HostPage() {
                       type="text"
                       value={userSearch}
                       onChange={(e) => setUserSearch(e.target.value)}
-                      className="w-full pl-10 pr-10 py-3 text-lg border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+                      className="w-full pl-10 pr-10 py-3 text-lg border-2 border-border bg-background text-foreground rounded-xl focus:border-primary focus:outline-none"
                     />
                     {userSearch && (
                       <button
                         onClick={() => setUserSearch("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -934,10 +934,10 @@ export default function HostPage() {
                       .map((user) => (
                         <div
                           key={user.id}
-                          className="relative bg-gray-50 rounded-xl p-3 text-center group hover:bg-gray-100 transition"
+                          className="relative bg-muted rounded-xl p-3 text-center group hover:bg-muted/70 transition"
                         >
                           <div className="text-4xl mb-1">{user.avatar}</div>
-                          <div className="text-xs text-gray-600 capitalize">
+                          <div className="text-xs text-muted-foreground capitalize">
                             {getEmojiName(user.avatar)}
                           </div>
                           <button

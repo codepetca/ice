@@ -10,7 +10,7 @@ export function LoadingSpinner({ size = "md", color }: LoadingSpinnerProps) {
     lg: "w-12 h-12 border-4",
   };
 
-  const colorClasses = color || "border-blue-200 border-t-blue-600";
+  const colorClasses = color || "border-muted border-t-primary";
 
   return (
     <div

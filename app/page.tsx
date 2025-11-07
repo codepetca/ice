@@ -124,21 +124,23 @@ export default function Home() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-blue-50 to-white">
+    <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md space-y-8"
+        className="w-full max-w-md space-y-12"
       >
         {/* Logo/Title */}
-        <div className="text-center space-y-2">
-          <h1 className="text-6xl font-bold text-gray-900">Ice</h1>
+        <div className="text-center">
+          <h1 className="text-6xl font-display font-bold text-foreground tracking-tight">
+            Ice
+          </h1>
         </div>
 
         {/* Code Input Boxes */}
-        <div className="space-y-3">
-          <p className="text-center text-lg text-gray-600">Enter room code</p>
-          <div className="flex justify-center gap-4">
+        <div className="space-y-4">
+          <p className="text-center text-sm font-sans text-muted-foreground uppercase tracking-wide">Enter room code</p>
+          <div className="flex justify-center gap-3">
             {[0, 1, 2].map((index) => (
               <input
                 key={index}
@@ -150,7 +152,7 @@ export default function Home() {
                 onPaste={handlePaste}
                 maxLength={1}
                 disabled={validating || (fullCode.length === 3 && room === undefined)}
-                className="w-20 h-24 text-center text-5xl font-bold border-4 border-blue-300 rounded-2xl bg-blue-600 text-white placeholder-blue-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-200 transition uppercase disabled:opacity-60"
+                className="w-20 h-24 text-center text-5xl font-display font-bold border-2 border-border rounded-lg bg-primary text-primary-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/20 transition-all uppercase disabled:opacity-50"
               />
             ))}
           </div>

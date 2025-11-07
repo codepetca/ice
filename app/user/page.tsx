@@ -557,7 +557,7 @@ function UserPageContent() {
   if (state.matches("not_joined")) {
     if (checkingSession) {
       return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-blue-50 to-white">
+        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -569,7 +569,7 @@ function UserPageContent() {
     }
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-blue-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -580,13 +580,13 @@ function UserPageContent() {
               {roomCode.split('').map((letter, index) => (
                 <div
                   key={index}
-                  className="w-16 h-20 flex items-center justify-center text-4xl font-bold border-4 border-blue-300 rounded-2xl bg-blue-600 shadow-lg uppercase text-white"
+                  className="w-16 h-20 flex items-center justify-center text-4xl font-display font-bold border-4 border-primary-300 rounded-3xl bg-primary text-primary-foreground shadow-glow uppercase text-white"
                 >
                   {letter}
                 </div>
               ))}
             </div>
-            <p className="text-xl text-gray-600">Choose your avatar</p>
+            <p className="text-xl font-sans text-gray-600">Choose your avatar</p>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
@@ -594,11 +594,12 @@ function UserPageContent() {
               <motion.button
                 key={avatar}
                 whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.05 }}
                 onClick={() => setSelectedAvatar(avatar)}
                 className={`aspect-square rounded-3xl flex items-center justify-center text-7xl transition-all ${
                   selectedAvatar === avatar
-                    ? "bg-blue-500 shadow-xl ring-4 ring-blue-300"
-                    : "bg-white border-4 border-gray-200 hover:border-blue-300 hover:shadow-lg"
+                    ? "bg-primary text-primary-foreground shadow-glow ring-4 ring-primary-300"
+                    : "bg-white border-4 border-primary-200 hover:border-primary-400 hover:shadow-lg"
                 }`}
               >
                 {avatar}
@@ -627,21 +628,21 @@ function UserPageContent() {
       const userAvatarName = userAvatar ? getEmojiName(userAvatar) : "";
 
       return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-50 to-white">
+        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-md space-y-8 text-center"
           >
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            <h2 className="text-3xl font-display font-bold text-gray-900 mb-4">
               You&apos;re in!
             </h2>
-            <p className="text-xl text-gray-600 mb-4">
+            <p className="text-xl font-sans text-gray-600 mb-4">
               Waiting for host to start the session...
             </p>
-            <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-6 mt-8">
+            <div className="bg-gradient-to-br from-primary-50 to-accent-50 border-3 border-primary-300 rounded-3xl p-6 mt-8">
               <div className="text-7xl mb-4">{userAvatar}</div>
-              <p className="text-2xl font-bold text-purple-600 capitalize">
+              <p className="text-2xl font-display font-bold text-primary-700 capitalize">
                 {userAvatarName}
               </p>
             </div>
@@ -654,7 +655,7 @@ function UserPageContent() {
     const userAvatarName = userAvatar ? getEmojiName(userAvatar) : "";
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-purple-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         {/* Incoming requests banner */}
         {incomingRequests && incomingRequests.length > 0 && (
           <RequestBanner
@@ -702,7 +703,7 @@ function UserPageContent() {
                     <div className="mb-4 relative">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-purple-400"
+                        className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-primary-400"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -718,12 +719,12 @@ function UserPageContent() {
                         type="text"
                         value={userSearch}
                         onChange={(e) => setUserSearch(e.target.value)}
-                        className="w-full pl-10 pr-10 py-3 text-lg border-2 border-purple-300 rounded-xl focus:border-purple-500 focus:outline-none bg-white"
+                        className="w-full pl-10 pr-10 py-3 text-lg border-2 border-primary-300 rounded-xl focus:border-primary-500 focus:outline-none bg-white"
                       />
                       {userSearch && (
                         <button
                           onClick={() => setUserSearch("")}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 hover:text-purple-600 transition"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-400 hover:text-primary-600 transition"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -776,8 +777,8 @@ function UserPageContent() {
                               isDisabled
                                 ? "bg-gray-100 border-4 border-gray-200 opacity-40 cursor-not-allowed"
                                 : selectedUser === user.id
-                                ? "bg-purple-500 shadow-xl ring-4 ring-purple-300"
-                                : "bg-white border-4 border-gray-200 hover:border-purple-300 hover:shadow-lg"
+                                ? "bg-primary text-primary-foreground shadow-xl ring-4 ring-primary-300"
+                                : "bg-white border-4 border-gray-200 hover:border-primary-300 hover:shadow-lg"
                             }`}
                           >
                             {selectedUser === user.id ? (
@@ -818,7 +819,7 @@ function UserPageContent() {
     const inRequestsDisplay = incomingRequests && incomingRequests.length > 0;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-purple-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         {inRequestsDisplay && (
           <RequestBanner
             requests={incomingRequests}
@@ -912,7 +913,7 @@ function UserPageContent() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("A")}
                 className={`sm:aspect-square rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition ${
-                  myAnswer === "A" ? "ring-4 ring-purple-300" : ""
+                  myAnswer === "A" ? "ring-4 ring-primary-300" : ""
                 }`}
               >
                 <div className="text-4xl mb-3">A</div>
@@ -1100,7 +1101,7 @@ function UserPageContent() {
     const isRevealed = currentRound?.round.revealedAt;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-b from-purple-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background">
         <AnimatePresence mode="wait">
           <motion.div
             key={roundNumber}
@@ -1160,7 +1161,7 @@ function UserPageContent() {
 export default function UserPage() {
   return (
     <Suspense fallback={
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-blue-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         <LoadingSpinner size="lg" />
       </main>
     }>

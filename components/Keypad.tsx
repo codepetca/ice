@@ -35,19 +35,19 @@ export function Keypad({ value, onChange, maxLength, allowDecimal = false }: Key
         {buttons.slice(0, 9).map((digit) => (
           <motion.button
             key={digit}
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => handlePress(digit)}
-            className="aspect-square text-3xl font-bold bg-white border-2 border-gray-300 rounded-2xl hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition shadow-sm"
+            className="aspect-square text-3xl font-display font-bold bg-card border-2 border-border rounded-lg hover:bg-muted hover:border-primary transition-all shadow-sm"
           >
             {digit}
           </motion.button>
         ))}
         {allowDecimal ? (
           <motion.button
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => handlePress(".")}
             disabled={value.includes(".")}
-            className="aspect-square text-3xl font-bold bg-white border-2 border-gray-300 rounded-2xl hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition shadow-sm"
+            className="aspect-square text-3xl font-display font-bold bg-card border-2 border-border rounded-lg hover:bg-muted hover:border-primary disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
           >
             .
           </motion.button>
@@ -55,17 +55,17 @@ export function Keypad({ value, onChange, maxLength, allowDecimal = false }: Key
           <div /> /* Empty space */
         )}
         <motion.button
-          whileTap={{ scale: 0.95 }}
+          whileTap={{ scale: 0.97 }}
           onClick={() => handlePress("0")}
-          className="aspect-square text-3xl font-bold bg-white border-2 border-gray-300 rounded-2xl hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition shadow-sm"
+          className="aspect-square text-3xl font-display font-bold bg-card border-2 border-border rounded-lg hover:bg-muted hover:border-primary transition-all shadow-sm"
         >
           0
         </motion.button>
         <motion.button
-          whileTap={{ scale: 0.95 }}
+          whileTap={{ scale: 0.97 }}
           onClick={handleBackspace}
           disabled={value.length === 0}
-          className="aspect-square text-2xl font-bold bg-white border-2 border-gray-300 rounded-2xl hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition shadow-sm"
+          className="aspect-square text-2xl font-display font-bold bg-primary text-primary-foreground border-2 border-primary rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
         >
           ⌫
         </motion.button>

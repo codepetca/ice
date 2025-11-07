@@ -58,7 +58,7 @@ export default function ProjectorPage() {
         >
           <div className="text-6xl mb-4">📺</div>
           <h1 className="text-5xl font-bold mb-4">Projector View</h1>
-          <p className="text-xl text-purple-200 mb-8">
+          <p className="text-xl text-accent-200 mb-8">
             Enter the room code
           </p>
 
@@ -67,7 +67,7 @@ export default function ProjectorPage() {
             {[0, 1, 2, 3].map((index) => (
               <div
                 key={index}
-                className="w-16 h-20 flex items-center justify-center text-4xl font-bold border-2 border-purple-300 rounded-xl bg-white text-gray-900"
+                className="w-16 h-20 flex items-center justify-center text-4xl font-bold border-2 border-primary-300 rounded-xl bg-white text-gray-900"
               >
                 {roomCode[index] || ""}
               </div>
@@ -84,7 +84,7 @@ export default function ProjectorPage() {
   if (!room) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-br from-purple-900 to-blue-900 text-white">
-        <LoadingSpinner size="lg" color="border-purple-300 border-t-white" />
+        <LoadingSpinner size="lg" color="border-primary-300 border-t-white" />
       </main>
     );
   }
@@ -99,7 +99,7 @@ export default function ProjectorPage() {
   // Phase 2 Completed
   if (game && game.status === "completed") {
     return (
-      <main className="min-h-screen p-12 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
+      <main className="min-h-screen p-12 bg-background dark:bg-card text-white">
         <div className="max-w-7xl mx-auto space-y-12 flex items-center justify-center min-h-screen">
           {/* Completion Message */}
           <motion.div
@@ -110,7 +110,7 @@ export default function ProjectorPage() {
           >
             <div className="text-9xl">✅</div>
             <h1 className="text-8xl font-bold">Slideshow Complete!</h1>
-            <div className="text-4xl text-purple-200">
+            <div className="text-4xl text-accent-200">
               Thank you for participating
             </div>
           </motion.div>
@@ -136,7 +136,7 @@ export default function ProjectorPage() {
   // Phase 2 Slideshow In Progress
   if (game && game.status === "in_progress" && currentRound) {
     return (
-      <main className="min-h-screen p-12 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center">
+      <main className="min-h-screen p-12 bg-background dark:bg-card text-white flex items-center justify-center">
         <div className="max-w-7xl mx-auto space-y-12">
           {/* Question */}
           <AnimatePresence mode="wait">
@@ -188,7 +188,7 @@ export default function ProjectorPage() {
 
   // Phase 1
   return (
-    <main className="min-h-screen p-12 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
+    <main className="min-h-screen p-12 bg-background dark:bg-card text-white">
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Header */}
         <motion.div
@@ -197,7 +197,7 @@ export default function ProjectorPage() {
           className="text-center space-y-4"
         >
           <h1 className="text-7xl font-bold">{room.name}</h1>
-          <div className="text-3xl text-purple-200">
+          <div className="text-3xl text-accent-200">
             Room Code: <span className="font-bold text-white">{roomCode}</span>
           </div>
         </motion.div>
@@ -228,7 +228,7 @@ export default function ProjectorPage() {
               exit={{ opacity: 0, scale: 0.8 }}
               className="text-center space-y-4"
             >
-              <div className="text-2xl text-purple-200 uppercase tracking-wider">
+              <div className="text-2xl text-accent-200 uppercase tracking-wider">
                 Time Remaining
               </div>
               <div className="text-9xl font-bold tabular-nums">
@@ -249,16 +249,16 @@ export default function ProjectorPage() {
             <div className="text-8xl font-bold text-white">
               {stats?.totalUsers || 0}
             </div>
-            <div className="text-3xl text-purple-200 uppercase tracking-wider">
+            <div className="text-3xl text-accent-200 uppercase tracking-wider">
               Students
             </div>
           </div>
 
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 text-center space-y-4">
-            <div className="text-8xl font-bold text-blue-300">
+            <div className="text-8xl font-bold text-secondary-300">
               {stats?.activeGroups || 0}
             </div>
-            <div className="text-3xl text-purple-200 uppercase tracking-wider">
+            <div className="text-3xl text-accent-200 uppercase tracking-wider">
               Active Groups
             </div>
           </div>
@@ -267,7 +267,7 @@ export default function ProjectorPage() {
             <div className="text-8xl font-bold text-green-300">
               {stats?.completedGroups || 0}
             </div>
-            <div className="text-3xl text-purple-200 uppercase tracking-wider">
+            <div className="text-3xl text-accent-200 uppercase tracking-wider">
               Completed
             </div>
           </div>
@@ -281,10 +281,10 @@ export default function ProjectorPage() {
             transition={{ delay: 0.4 }}
             className="text-center space-y-6 pt-8"
           >
-            <div className="text-4xl font-semibold text-purple-200">
+            <div className="text-4xl font-semibold text-accent-200">
               Waiting for teacher to start Phase 1...
             </div>
-            <div className="text-2xl text-purple-300">
+            <div className="text-2xl text-accent-300">
               Students can join at <span className="font-mono">/student</span>
             </div>
           </motion.div>
@@ -297,7 +297,7 @@ export default function ProjectorPage() {
             transition={{ delay: 0.4 }}
             className="text-center space-y-4 pt-8"
           >
-            <div className="text-3xl font-semibold text-purple-200">
+            <div className="text-3xl font-semibold text-accent-200">
               💬 Students are connecting and talking!
             </div>
           </motion.div>
