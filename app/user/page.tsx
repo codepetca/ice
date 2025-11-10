@@ -256,6 +256,22 @@ function UserPageContent() {
     }
   }, [game, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Phase 2: Monitor room reset (when admin starts new round)
+  useEffect(() => {
+    if (
+      room &&
+      !room.phase1StartedAt &&
+      (state.matches("phase2_reveal") ||
+       state.matches("phase2_waiting") ||
+       state.matches("phase2_voting") ||
+       state.matches("phase2_complete"))
+    ) {
+      // Room was reset - transition back to browsing
+      send({ type: "ROOM_RESET" });
+      showToast("Starting new round", "info");
+    }
+  }, [room?.phase1StartedAt, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Monitor group status - detect when group is created/joined or completed
   useEffect(() => {
     // If we're in a group state but currentGroup is null, group was completed
@@ -264,7 +280,7 @@ function UserPageContent() {
         setElapsedTime(0);
         setSelectedUser(null);
         send({ type: "LEAVE_GROUP" });
-        showToast("Session completed", "info");
+        showToast("Join another group!", "info");
 
         // Show confetti for all participants
         confetti({
@@ -296,7 +312,6 @@ function UserPageContent() {
         members: currentGroup.members,
         question: currentGroup.question,
       });
-      showToast("Joined group!", "success");
     }
   }, [currentGroup, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -434,11 +449,9 @@ function UserPageContent() {
             members: (result as any).members || [],
             question: (result as any).question,
           });
-          showToast("Joined group!", "success");
         } else {
           // Request sent, waiting for acceptance
           send({ type: "SEND_REQUEST", targetId });
-          showToast("Request sent!", "info");
         }
       }
     } catch (error: any) {
@@ -459,7 +472,6 @@ function UserPageContent() {
       await cancelGroupRequest({ userId: state.context.userId as Id<"users"> });
       send({ type: "CANCEL_REQUEST" });
       setSelectedUser(null);
-      showToast("Request cancelled", "info");
     } catch (error: any) {
       showToast(error.message, "error");
     }
@@ -477,7 +489,7 @@ function UserPageContent() {
       });
 
       if (result.success) {
-        // Only send JOINED_GROUP event and show toast if we weren't already in a group
+        // Only send JOINED_GROUP event if we weren't already in a group
         if (!wasAlreadyInGroup) {
           send({
             type: "JOINED_GROUP",
@@ -485,10 +497,6 @@ function UserPageContent() {
             members: (result as any).members || [],
             question: (result as any).question,
           });
-          showToast("Joined group!", "success");
-        } else {
-          // Just show a different toast for accepting someone into existing group
-          showToast("Added to group!", "success");
         }
       }
     } catch (error: any) {

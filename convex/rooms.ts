@@ -52,6 +52,40 @@ export const cleanupExpiredRooms = internalMutation({
         await ctx.db.delete(request._id);
       }
 
+      // Delete Phase 2 data (games, rounds, votes, scores) tied to this room
+      const games = await ctx.db
+        .query("games")
+        .withIndex("by_room", (q) => q.eq("roomId", room._id))
+        .collect();
+
+      for (const game of games) {
+        const votes = await ctx.db
+          .query("votes")
+          .withIndex("by_game", (q) => q.eq("gameId", game._id))
+          .collect();
+        for (const vote of votes) {
+          await ctx.db.delete(vote._id);
+        }
+
+        const rounds = await ctx.db
+          .query("gameRounds")
+          .withIndex("by_game", (q) => q.eq("gameId", game._id))
+          .collect();
+        for (const round of rounds) {
+          await ctx.db.delete(round._id);
+        }
+
+        const scores = await ctx.db
+          .query("scores")
+          .withIndex("by_game", (q) => q.eq("gameId", game._id))
+          .collect();
+        for (const score of scores) {
+          await ctx.db.delete(score._id);
+        }
+
+        await ctx.db.delete(game._id);
+      }
+
       // Finally, delete the room itself
       await ctx.db.delete(room._id);
     }
@@ -74,6 +108,28 @@ function generatePIN(): string {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
+async function generateUniqueRoomCode(ctx: any): Promise<string> {
+  while (true) {
+    const code = generateRoomCode();
+    const existing = await ctx.db
+      .query("rooms")
+      .withIndex("by_code", (q: any) => q.eq("code", code))
+      .first();
+    if (!existing) return code;
+  }
+}
+
+async function generateUniquePIN(ctx: any): Promise<string> {
+  while (true) {
+    const pin = generatePIN();
+    const existing = await ctx.db
+      .query("rooms")
+      .withIndex("by_pin", (q: any) => q.eq("pin", pin))
+      .first();
+    if (!existing) return pin;
+  }
+}
+
 export const createRoom = mutation({
   args: {
     name: v.string(),
@@ -81,8 +137,8 @@ export const createRoom = mutation({
     maxGroupSize: v.optional(v.number()), // optional, defaults to 4
   },
   handler: async (ctx, args) => {
-    const code = generateRoomCode();
-    const pin = generatePIN();
+    const code = await generateUniqueRoomCode(ctx);
+    const pin = await generateUniquePIN(ctx);
     const now = Date.now();
     const fortyEightHours = 48 * 60 * 60 * 1000; // 48 hours in milliseconds
 
@@ -93,6 +149,7 @@ export const createRoom = mutation({
       phase1Active: false,
       phase1Duration: args.phase1Duration,
       maxGroupSize: args.maxGroupSize || 4,
+      roundNumber: 1, // Start at round 1
       createdAt: now,
       expiresAt: now + fortyEightHours,
     });
@@ -214,8 +271,10 @@ export const resetRoom = mutation({
     if (!room) throw new Error("Room not found");
     if (room.pin !== args.pin) throw new Error("Invalid PIN");
 
-    // Clear Phase 1 timestamps to return to ready state
+    // Increment round number and reset for new round of data collection
     await ctx.db.patch(args.roomId, {
+      roundNumber: room.roundNumber + 1, // Move to next round
+      phase1Duration: 600, // Reset to 10 minutes
       phase1StartedAt: undefined,
       phase1Active: false,
       windingDownStartedAt: undefined,

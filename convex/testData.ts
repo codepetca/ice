@@ -17,6 +17,7 @@ export const generateTestRoom = mutation({
       phase1Duration: 600, // 10 minutes
       phase1StartedAt: now - 600000, // Started 10 minutes ago (finished)
       maxGroupSize: 4,
+      roundNumber: 1, // Start at round 1
       createdAt: now,
       expiresAt: now + fortyEightHours,
     });
@@ -93,6 +94,7 @@ export const generateTestRoom = mutation({
           userId: userIds[j],
           choice,
           skipped: false,
+          roundNumber: 1, // Test data is for round 1
           timestamp: now - 300000 + j * 1000,
         });
       }
@@ -120,6 +122,7 @@ export const generateTestRoom = mutation({
     // Create game
     const gameId = await ctx.db.insert("games", {
       roomId,
+      dataRoundNumber: 1, // Test data is for round 1
       status: "not_started",
       currentRound: 0,
       totalRounds: gameQuestions.length,

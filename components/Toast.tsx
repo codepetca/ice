@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useRef, useEffect, ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type ToastType = "success" | "error" | "warning" | "info";
@@ -19,6 +19,14 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearToastTimeout = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
 
   const showToast = (message: string, type: ToastType = "info") => {
     const id = Math.random().toString(36).substring(7);
@@ -26,16 +34,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
     // Replace any existing toast with the new one
     setToast(newToast);
+    clearToastTimeout();
 
     // Auto-dismiss after 4 seconds
-    setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
       setToast((current) => (current?.id === id ? null : current));
+      timeoutRef.current = null;
     }, 4000);
   };
 
   const removeToast = () => {
+    clearToastTimeout();
     setToast(null);
   };
+
+  useEffect(() => {
+    return () => {
+      clearToastTimeout();
+    };
+  }, []);
 
   const getToastStyles = (type: ToastType) => {
     switch (type) {

@@ -10,7 +10,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { getEmojiName } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
-import { Maximize, Minimize, Play, Pause, Square, Settings, Sun, Moon, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Maximize, Minimize, Play, Pause, Square, Settings, Sun, Moon, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 
 const ROOM_STORAGE_KEY = "ice-host-room";
 
@@ -186,14 +186,10 @@ export default function HostPage() {
   // Manual navigation - auto-advance disabled
   // Use forward/backward buttons to control slideshow
 
-  // Show "New Game" button on last slide after reveal (with delay)
+  // Show "New Round?" button on last slide after reveal (immediately)
   useEffect(() => {
     if (game && game.currentRound === game.totalRounds && currentRound?.round.revealedAt) {
-      // Wait 3 seconds after reveal, then show button
-      const timer = setTimeout(() => {
-        setShowNewGameButton(true);
-      }, 3000);
-      return () => clearTimeout(timer);
+      setShowNewGameButton(true);
     } else {
       setShowNewGameButton(false);
     }
@@ -1066,6 +1062,11 @@ export default function HostPage() {
                 {displayRound.round.roundNumber} / {game.totalRounds}
               </div>
             )}
+            {room && (
+              <div className="text-sm text-muted-foreground mt-1">
+                Round {room.roundNumber}
+              </div>
+            )}
           </div>
 
           {/* Slideshow Content */}
@@ -1081,7 +1082,7 @@ export default function HostPage() {
                     duration: 0.5,
                     ease: [0.4, 0.0, 0.2, 1]
                   }}
-                  className={`w-full max-w-6xl transition-opacity duration-500 ${showNewGameButton ? 'opacity-50' : 'opacity-100'}`}
+                  className="w-full max-w-6xl"
                 >
                   <SlideshowQuestion
                     questionText={displayRound.questionData.text || displayRound.round.questionText}
@@ -1103,20 +1104,18 @@ export default function HostPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full max-w-6xl"
               >
-                <div className="opacity-50">
-                  <SlideshowQuestion
-                    questionText={firstRound.questionData.text || firstRound.round.questionText}
-                    optionA={firstRound.questionData.optionA}
-                    optionB={firstRound.questionData.optionB}
-                    percentA={firstRound.questionData.percentA}
-                    percentB={firstRound.questionData.percentB}
-                    totalResponses={firstRound.questionData.totalResponses}
-                    isRevealed={false}
-                    roundNumber={1}
-                    variant="projector"
-                    isPreview={true}
-                  />
-                </div>
+                <SlideshowQuestion
+                  questionText={firstRound.questionData.text || firstRound.round.questionText}
+                  optionA={firstRound.questionData.optionA}
+                  optionB={firstRound.questionData.optionB}
+                  percentA={firstRound.questionData.percentA}
+                  percentB={firstRound.questionData.percentB}
+                  totalResponses={firstRound.questionData.totalResponses}
+                  isRevealed={false}
+                  roundNumber={1}
+                  variant="projector"
+                  isPreview={true}
+                />
               </motion.div>
             ) : slideshowReady && !firstRound?.questionData ? (
               <motion.div
@@ -1128,53 +1127,51 @@ export default function HostPage() {
               </motion.div>
             ) : null}
 
-            {/* Centered "New Game" Button Overlay (Last Slide After Reveal) */}
-            <AnimatePresence>
-              {showNewGameButton && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.5 }}
-                  className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
-                >
-                  <button
-                    onClick={async () => {
-                      const confirmed = await showConfirm({
-                        title: "Start New Game?",
-                        message: "This will reset all game data and start fresh.",
-                      });
-                      if (confirmed && roomId && pin && room) {
-                        try {
-                          // Reset duration to 10 minutes (600 seconds)
-                          const targetDuration = 600;
-                          const adjustment = targetDuration - room.phase1Duration;
-                          if (adjustment !== 0) {
-                            await adjustPhase1Duration({
-                              roomId: roomId as Id<"rooms">,
-                              pin: pin,
-                              adjustmentSeconds: adjustment,
-                            });
-                          }
-
-                          await resetRoom({
-                            roomId: roomId as Id<"rooms">,
-                            pin: pin,
-                          });
-                          showToast("Ready to start a new session");
-                        } catch (error: any) {
-                          showToast(error.message, "error");
-                        }
-                      }
-                    }}
-                    className="px-16 py-8 bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white text-4xl font-bold rounded-2xl hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-105 active:scale-95 pointer-events-auto"
-                  >
-                    New Game
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </main>
+
+          {/* "New Round?" Button - Bottom Right (Last Slide After Reveal) */}
+          <AnimatePresence>
+            {showNewGameButton && (
+              <motion.button
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+                onClick={async () => {
+                  const confirmed = await showConfirm({
+                    title: "Start New Round?",
+                    message: "This will reset all game data and start fresh.",
+                  });
+                  if (confirmed && roomId && pin && room) {
+                    try {
+                      // Reset duration to 10 minutes (600 seconds)
+                      const targetDuration = 600;
+                      const adjustment = targetDuration - room.phase1Duration;
+                      if (adjustment !== 0) {
+                        await adjustPhase1Duration({
+                          roomId: roomId as Id<"rooms">,
+                          pin: pin,
+                          adjustmentSeconds: adjustment,
+                        });
+                      }
+
+                      await resetRoom({
+                        roomId: roomId as Id<"rooms">,
+                        pin: pin,
+                      });
+                      showToast("Ready to start a new session");
+                    } catch (error: any) {
+                      showToast(error.message, "error");
+                    }
+                  }
+                }}
+                className="fixed bottom-8 right-8 z-50 w-20 h-20 flex items-center justify-center bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white rounded-full hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-110 active:scale-95"
+                aria-label="Start new round"
+              >
+                <ArrowRight className="w-10 h-10" />
+              </motion.button>
+            )}
+          </AnimatePresence>
 
           {/* Control Buttons - Bottom Center */}
           <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex gap-4">
@@ -1212,9 +1209,10 @@ export default function HostPage() {
                     showToast(error.message, "error");
                   }
                 }}
-                className="px-16 py-8 bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white text-3xl font-bold rounded-2xl hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-105 active:scale-95"
+                className="w-20 h-20 flex items-center justify-center bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white rounded-full hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-110 active:scale-95"
+                aria-label="Start new round"
               >
-                New Game
+                <ArrowRight className="w-10 h-10" />
               </button>
             )}
             {game && game.status === "in_progress" && (

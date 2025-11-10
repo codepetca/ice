@@ -43,7 +43,8 @@ export type UserEvents =
   | { type: "SUBMIT_VOTE"; choice: string }
   | { type: "ROUND_REVEALED" }
   | { type: "NEXT_ROUND"; roundNumber: number; questionText: string }
-  | { type: "GAME_COMPLETE" };
+  | { type: "GAME_COMPLETE" }
+  | { type: "ROOM_RESET" };
 
 export const userMachine = setup({
   types: {
@@ -105,6 +106,12 @@ export const userMachine = setup({
         event.type === "NEXT_ROUND" ? event.roundNumber : null,
       gameQuestion: ({ event }) =>
         event.type === "NEXT_ROUND" ? event.questionText : null,
+      myVote: null,
+    }),
+    resetPhase2: assign({
+      gameId: null,
+      currentRoundNumber: null,
+      gameQuestion: null,
       myVote: null,
     }),
   },
@@ -207,11 +214,19 @@ export const userMachine = setup({
           target: "phase2_waiting",
           actions: "setVote",
         },
+        ROOM_RESET: {
+          target: "browsing",
+          actions: "resetPhase2",
+        },
       },
     },
     phase2_waiting: {
       on: {
         ROUND_REVEALED: "phase2_reveal",
+        ROOM_RESET: {
+          target: "browsing",
+          actions: "resetPhase2",
+        },
       },
     },
     phase2_reveal: {
@@ -221,10 +236,19 @@ export const userMachine = setup({
           actions: "nextRound",
         },
         GAME_COMPLETE: "phase2_complete",
+        ROOM_RESET: {
+          target: "browsing",
+          actions: "resetPhase2",
+        },
       },
     },
     phase2_complete: {
-      type: "final",
+      on: {
+        ROOM_RESET: {
+          target: "browsing",
+          actions: "resetPhase2",
+        },
+      },
     },
   },
 });

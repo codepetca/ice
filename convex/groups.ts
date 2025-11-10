@@ -812,6 +812,10 @@ export const submitAnswer = mutation({
 
     // Store the answer
     if (group.currentQuestionId) {
+      // Get room to access current round number
+      const room = await ctx.db.get(group.roomId);
+      if (!room) throw new Error("Room not found");
+
       await ctx.db.insert("answers", {
         roomId: group.roomId,
         groupId: args.groupId,
@@ -819,6 +823,7 @@ export const submitAnswer = mutation({
         userId: args.userId,
         choice: args.choice,
         skipped: false,
+        roundNumber: room.roundNumber, // Tag with current round
         timestamp: Date.now(),
       });
     }

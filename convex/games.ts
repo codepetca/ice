@@ -14,7 +14,8 @@ function getPercentageBucket(percentage: number): string {
 
 async function generateSlideshowQuestions(
   ctx: any,
-  roomId: any
+  roomId: any,
+  roundNumber: number
 ): Promise<
   Array<{
     questionId: any;
@@ -26,10 +27,10 @@ async function generateSlideshowQuestions(
     totalResponses: number;
   }>
 > {
-  // Get all answers for this room
+  // Get all answers for this room and round number
   const answers = await ctx.db
     .query("answers")
-    .withIndex("by_room", (q: any) => q.eq("roomId", roomId))
+    .withIndex("by_room_and_round", (q: any) => q.eq("roomId", roomId).eq("roundNumber", roundNumber))
     .collect();
 
   // Get all questions to get their text
@@ -99,32 +100,23 @@ export const generateGame = mutation({
     roomId: v.id("rooms"),
   },
   handler: async (ctx, args) => {
-    // Check if game already exists for this room
+    // Get the room to access its current round number
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+
+    // Check if game already exists for this room and round
     const existingGame = await ctx.db
       .query("games")
-      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .withIndex("by_room_and_data_round", (q) =>
+        q.eq("roomId", args.roomId).eq("dataRoundNumber", room.roundNumber))
       .first();
 
     if (existingGame) {
-      // If the game is completed, delete it and create a new one
-      if (existingGame.status === "completed") {
-        // Delete old game rounds
-        const rounds = await ctx.db
-          .query("gameRounds")
-          .withIndex("by_game", (q) => q.eq("gameId", existingGame._id))
-          .collect();
-        for (const round of rounds) {
-          await ctx.db.delete(round._id);
-        }
-        // Delete old game
-        await ctx.db.delete(existingGame._id);
-      } else {
-        return { gameId: existingGame._id, message: "Game already exists", totalRounds: existingGame.totalRounds };
-      }
+      return { gameId: existingGame._id, message: "Game already exists for this round", totalRounds: existingGame.totalRounds };
     }
 
-    // Generate questions
-    const questions = await generateSlideshowQuestions(ctx, args.roomId);
+    // Generate questions from current round's data
+    const questions = await generateSlideshowQuestions(ctx, args.roomId, room.roundNumber);
 
     if (questions.length === 0) {
       throw new Error(
@@ -132,9 +124,10 @@ export const generateGame = mutation({
       );
     }
 
-    // Create game
+    // Create game for this round
     const gameId = await ctx.db.insert("games", {
       roomId: args.roomId,
+      dataRoundNumber: room.roundNumber, // Tag which round's data this represents
       status: "not_started",
       currentRound: 0,
       totalRounds: questions.length,
@@ -422,10 +415,10 @@ export const getCurrentRound = query({
     // Get original question to fetch optionA and optionB
     const question = await ctx.db.get(round.questionId);
 
-    // Get all answers for this question in this room
+    // Get all answers for this question in this room and round
     const answers = await ctx.db
       .query("answers")
-      .withIndex("by_room", (q) => q.eq("roomId", game.roomId))
+      .withIndex("by_room_and_round", (q) => q.eq("roomId", game.roomId).eq("roundNumber", game.dataRoundNumber))
       .filter((q) => q.eq(q.field("questionId"), round.questionId))
       .collect();
 
@@ -470,10 +463,10 @@ export const getRoundByNumber = query({
     // Get original question to fetch optionA and optionB
     const question = await ctx.db.get(round.questionId);
 
-    // Get all answers for this question in this room
+    // Get all answers for this question in this room and round
     const answers = await ctx.db
       .query("answers")
-      .withIndex("by_room", (q) => q.eq("roomId", game.roomId))
+      .withIndex("by_room_and_round", (q) => q.eq("roomId", game.roomId).eq("roundNumber", game.dataRoundNumber))
       .filter((q) => q.eq(q.field("questionId"), round.questionId))
       .collect();
 

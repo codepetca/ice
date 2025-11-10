@@ -11,6 +11,7 @@ export default defineSchema({
     phase1StartedAt: v.optional(v.number()),
     windingDownStartedAt: v.optional(v.number()), // When winding down period begins
     maxGroupSize: v.number(), // Maximum users per group (default 4)
+    roundNumber: v.number(), // Current round of data collection (starts at 1)
     createdAt: v.number(),
     expiresAt: v.number(), // Room expires after 7 days
   })
@@ -85,9 +86,11 @@ export default defineSchema({
     userId: v.id("users"),
     choice: v.string(), // "A" or "B"
     skipped: v.boolean(),
+    roundNumber: v.number(), // Which round of data collection this answer is from
     timestamp: v.number(),
   })
     .index("by_room", ["roomId"])
+    .index("by_room_and_round", ["roomId", "roundNumber"])
     .index("by_user", ["userId"])
     .index("by_group", ["groupId"]),
 
@@ -114,17 +117,19 @@ export default defineSchema({
   // Phase 2: Summary Game tables
   games: defineTable({
     roomId: v.id("rooms"),
+    dataRoundNumber: v.number(), // Which round of Phase 1 data this game represents
     status: v.union(
       v.literal("not_started"),
       v.literal("in_progress"),
       v.literal("completed")
     ),
-    currentRound: v.number(), // Current round number (1-based)
-    totalRounds: v.number(), // Total number of rounds/questions
+    currentRound: v.number(), // Current slide number (1-based)
+    totalRounds: v.number(), // Total number of slides/questions
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
   })
     .index("by_room", ["roomId"])
+    .index("by_room_and_data_round", ["roomId", "dataRoundNumber"])
     .index("by_status", ["status"]),
 
   gameRounds: defineTable({

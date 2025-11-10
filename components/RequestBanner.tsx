@@ -38,14 +38,24 @@ export function RequestBanner({
 
   const handleAccept = async (requestId: string) => {
     setProcessingId(requestId);
-    await onAccept(requestId);
-    // Keep processing state until request disappears from list
+    try {
+      await onAccept(requestId);
+      // Keep processing state until request disappears from list on success
+    } catch (error) {
+      setProcessingId(null);
+      throw error;
+    }
   };
 
   const handleReject = async (requestId: string) => {
     setProcessingId(requestId);
-    await onReject(requestId);
-    // Keep processing state until request disappears from list
+    try {
+      await onReject(requestId);
+      // Keep processing state until request disappears from list on success
+    } catch (error) {
+      setProcessingId(null);
+      throw error;
+    }
   };
 
   const isProcessing = processingId === request.requestId;
