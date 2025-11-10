@@ -12,6 +12,8 @@ import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
 import { RequestBanner } from "@/components/RequestBanner";
 import { getRandomAvatars, getEmojiName } from "@/lib/avatars";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { SlideshowQuestion } from "@/components/SlideshowQuestion";
 
 function UserPageContent() {
   const searchParams = useSearchParams();
@@ -36,6 +38,9 @@ function UserPageContent() {
   const cancelGroupRequest = useMutation(api.groups.cancelGroupRequest);
   const submitAnswer = useMutation(api.groups.submitAnswer);
   const completeGroup = useMutation(api.groups.completeGroup);
+
+  // Phase 2 mutations
+  const submitVote = useMutation(api.games.submitVote);
 
   const validateUserSession = useQuery(
     api.users.validateUserSession,
@@ -77,6 +82,41 @@ function UserPageContent() {
   const outgoingRequest = useQuery(
     api.groups.getOutgoingRequest,
     state.context.userId ? { userId: state.context.userId as Id<"users"> } : "skip"
+  );
+
+  // Phase 2 queries
+  const game = useQuery(
+    api.games.getGameByRoom,
+    state.context.roomId ? { roomId: state.context.roomId as Id<"rooms"> } : "skip"
+  );
+
+  const gameState = useQuery(
+    api.games.getGameState,
+    game ? { gameId: game._id } : "skip"
+  );
+
+  const currentRound = useQuery(
+    api.games.getCurrentRound,
+    game ? { gameId: game._id } : "skip"
+  );
+
+  const userScore = useQuery(
+    api.games.getUserScore,
+    game && state.context.userId
+      ? { gameId: game._id, userId: state.context.userId as Id<"users"> }
+      : "skip"
+  );
+
+  const hasVoted = useQuery(
+    api.games.hasVotedThisRound,
+    game && state.context.userId
+      ? { gameId: game._id, userId: state.context.userId as Id<"users"> }
+      : "skip"
+  );
+
+  const leaderboard = useQuery(
+    api.games.getLeaderboard,
+    game && game.status === "completed" ? { gameId: game._id } : "skip"
   );
 
   // Check for existing session in localStorage on mount
@@ -139,11 +179,98 @@ function UserPageContent() {
       room &&
       !room.phase1Active &&
       room.phase1StartedAt &&
-      state.matches("browsing")
+      (state.matches("browsing") || state.matches("question_active") || state.matches("wrap_up"))
     ) {
       send({ type: "SESSION_LOCKED" });
     }
   }, [room, state, send]);
+
+  // Phase 2: Monitor game start
+  useEffect(() => {
+    if (
+      game &&
+      game.status === "in_progress" &&
+      state.matches("session_locked") &&
+      currentRound
+    ) {
+      send({
+        type: "START_PHASE2",
+        gameId: game._id,
+        roundNumber: currentRound.round.roundNumber,
+        questionText: currentRound.round.questionText,
+      });
+    }
+  }, [game, currentRound, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phase 2: Auto-transition to waiting after voting
+  useEffect(() => {
+    if (
+      state.matches("phase2_voting") &&
+      hasVoted === true
+    ) {
+      send({ type: "SUBMIT_VOTE", choice: "dummy" }); // Choice already submitted via mutation
+    }
+  }, [hasVoted, state, send]);
+
+  // Phase 2: Monitor round reveal
+  useEffect(() => {
+    if (
+      state.matches("phase2_waiting") &&
+      currentRound?.round.revealedAt
+    ) {
+      send({ type: "ROUND_REVEALED" });
+    }
+  }, [currentRound, state, send]);
+
+  // Phase 2: Monitor round advancement
+  useEffect(() => {
+    if (
+      state.matches("phase2_reveal") &&
+      gameState?.game
+    ) {
+      // Check if we moved to a new round
+      const currentInState = state.context.currentRoundNumber;
+      const currentInGame = gameState.game.currentRound;
+
+      if (currentInGame > currentInState!) {
+        // New round started
+        if (currentRound) {
+          send({
+            type: "NEXT_ROUND",
+            roundNumber: currentRound.round.roundNumber,
+            questionText: currentRound.round.questionText,
+          });
+        }
+      }
+    }
+  }, [gameState, currentRound, state, send]);
+
+  // Phase 2: Monitor game completion
+  useEffect(() => {
+    if (
+      game &&
+      game.status === "completed" &&
+      (state.matches("phase2_reveal") || state.matches("phase2_waiting") || state.matches("phase2_voting"))
+    ) {
+      send({ type: "GAME_COMPLETE" });
+    }
+  }, [game, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Phase 2: Monitor room reset (when admin starts new round)
+  useEffect(() => {
+    if (
+      room &&
+      !room.phase1StartedAt &&
+      (state.matches("phase2_reveal") ||
+       state.matches("phase2_waiting") ||
+       state.matches("phase2_voting") ||
+       state.matches("phase2_complete"))
+    ) {
+      // Room was reset - transition back to browsing
+      send({ type: "ROOM_RESET" });
+      showToast("Starting new round", "info");
+    }
+  }, [room?.phase1StartedAt, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Monitor group status - detect when group is created/joined or completed
   useEffect(() => {
@@ -153,7 +280,14 @@ function UserPageContent() {
         setElapsedTime(0);
         setSelectedUser(null);
         send({ type: "LEAVE_GROUP" });
-        showToast("Session completed", "info");
+        showToast("Join another group!", "info");
+
+        // Show confetti for all participants
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
       }
       return;
     }
@@ -178,7 +312,6 @@ function UserPageContent() {
         members: currentGroup.members,
         question: currentGroup.question,
       });
-      showToast("Joined group!", "success");
     }
   }, [currentGroup, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -316,11 +449,9 @@ function UserPageContent() {
             members: (result as any).members || [],
             question: (result as any).question,
           });
-          showToast("Joined group!", "success");
         } else {
           // Request sent, waiting for acceptance
           send({ type: "SEND_REQUEST", targetId });
-          showToast("Request sent!", "info");
         }
       }
     } catch (error: any) {
@@ -341,7 +472,6 @@ function UserPageContent() {
       await cancelGroupRequest({ userId: state.context.userId as Id<"users"> });
       send({ type: "CANCEL_REQUEST" });
       setSelectedUser(null);
-      showToast("Request cancelled", "info");
     } catch (error: any) {
       showToast(error.message, "error");
     }
@@ -359,7 +489,7 @@ function UserPageContent() {
       });
 
       if (result.success) {
-        // Only send JOINED_GROUP event and show toast if we weren't already in a group
+        // Only send JOINED_GROUP event if we weren't already in a group
         if (!wasAlreadyInGroup) {
           send({
             type: "JOINED_GROUP",
@@ -367,10 +497,6 @@ function UserPageContent() {
             members: (result as any).members || [],
             question: (result as any).question,
           });
-          showToast("Joined group!", "success");
-        } else {
-          // Just show a different toast for accepting someone into existing group
-          showToast("Added to group!", "success");
         }
       }
     } catch (error: any) {
@@ -415,36 +541,43 @@ function UserPageContent() {
       groupId: state.context.groupId as Id<"groups">,
     });
 
-    setElapsedTime(0);
-    setSelectedUser(null);
-    send({ type: "LEAVE_GROUP" });
+    // Note: confetti and state updates now happen in the useEffect that monitors group completion
+    // This ensures all participants see the confetti, not just the user who clicked "Done"
+  };
 
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-    });
+  // Phase 2 handler
+  const handleSubmitVote = async (choice: string) => {
+    if (!game || !state.context.userId) return;
+
+    try {
+      await submitVote({
+        gameId: game._id,
+        userId: state.context.userId as Id<"users">,
+        choice,
+      });
+      showToast("Vote submitted!", "success");
+    } catch (error: any) {
+      showToast(error.message, "error");
+    }
   };
 
   // Not joined state
   if (state.matches("not_joined")) {
     if (checkingSession) {
       return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-blue-50 to-white">
+        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center space-y-6"
           >
-            <div className="text-6xl">🔄</div>
-            <p className="text-xl text-gray-600">Checking session...</p>
+            <LoadingSpinner size="lg" />
           </motion.div>
         </main>
       );
     }
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-blue-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -455,13 +588,13 @@ function UserPageContent() {
               {roomCode.split('').map((letter, index) => (
                 <div
                   key={index}
-                  className="w-16 h-20 flex items-center justify-center text-4xl font-bold border-4 border-blue-300 rounded-2xl bg-blue-600 shadow-lg uppercase text-white"
+                  className="w-16 h-20 flex items-center justify-center text-4xl font-display font-bold border-4 border-primary-300 rounded-3xl bg-primary text-primary-foreground shadow-glow uppercase text-white"
                 >
                   {letter}
                 </div>
               ))}
             </div>
-            <p className="text-xl text-gray-600">Choose your avatar</p>
+            <p className="text-xl font-sans text-gray-600">Choose your avatar</p>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
@@ -469,11 +602,12 @@ function UserPageContent() {
               <motion.button
                 key={avatar}
                 whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.05 }}
                 onClick={() => setSelectedAvatar(avatar)}
                 className={`aspect-square rounded-3xl flex items-center justify-center text-7xl transition-all ${
                   selectedAvatar === avatar
-                    ? "bg-blue-500 shadow-xl ring-4 ring-blue-300"
-                    : "bg-white border-4 border-gray-200 hover:border-blue-300 hover:shadow-lg"
+                    ? "bg-primary text-primary-foreground shadow-glow ring-4 ring-primary-300"
+                    : "bg-white border-4 border-primary-200 hover:border-primary-400 hover:shadow-lg"
                 }`}
               >
                 {avatar}
@@ -485,9 +619,9 @@ function UserPageContent() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-center"
+              className="flex justify-center"
             >
-              <p className="text-gray-600">Joining as {selectedAvatar}...</p>
+              <LoadingSpinner size="sm" />
             </motion.div>
           )}
         </motion.div>
@@ -502,21 +636,21 @@ function UserPageContent() {
       const userAvatarName = userAvatar ? getEmojiName(userAvatar) : "";
 
       return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-50 to-white">
+        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-md space-y-8 text-center"
           >
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            <h2 className="text-3xl font-display font-bold text-gray-900 mb-4">
               You&apos;re in!
             </h2>
-            <p className="text-xl text-gray-600 mb-4">
+            <p className="text-xl font-sans text-gray-600 mb-4">
               Waiting for host to start the session...
             </p>
-            <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-6 mt-8">
+            <div className="bg-gradient-to-br from-primary-50 to-accent-50 border-3 border-primary-300 rounded-3xl p-6 mt-8">
               <div className="text-7xl mb-4">{userAvatar}</div>
-              <p className="text-2xl font-bold text-purple-600 capitalize">
+              <p className="text-2xl font-display font-bold text-primary-700 capitalize">
                 {userAvatarName}
               </p>
             </div>
@@ -529,7 +663,7 @@ function UserPageContent() {
     const userAvatarName = userAvatar ? getEmojiName(userAvatar) : "";
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-purple-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         {/* Incoming requests banner */}
         {incomingRequests && incomingRequests.length > 0 && (
           <RequestBanner
@@ -577,7 +711,7 @@ function UserPageContent() {
                     <div className="mb-4 relative">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-purple-400"
+                        className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-primary-400"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -593,12 +727,12 @@ function UserPageContent() {
                         type="text"
                         value={userSearch}
                         onChange={(e) => setUserSearch(e.target.value)}
-                        className="w-full pl-10 pr-10 py-3 text-lg border-2 border-purple-300 rounded-xl focus:border-purple-500 focus:outline-none bg-white"
+                        className="w-full pl-10 pr-10 py-3 text-lg border-2 border-primary-300 rounded-xl focus:border-primary-500 focus:outline-none bg-white"
                       />
                       {userSearch && (
                         <button
                           onClick={() => setUserSearch("")}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 hover:text-purple-600 transition"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-400 hover:text-primary-600 transition"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -651,15 +785,12 @@ function UserPageContent() {
                               isDisabled
                                 ? "bg-gray-100 border-4 border-gray-200 opacity-40 cursor-not-allowed"
                                 : selectedUser === user.id
-                                ? "bg-purple-500 shadow-xl ring-4 ring-purple-300"
-                                : "bg-white border-4 border-gray-200 hover:border-purple-300 hover:shadow-lg"
+                                ? "bg-primary text-primary-foreground shadow-xl ring-4 ring-primary-300"
+                                : "bg-white border-4 border-gray-200 hover:border-primary-300 hover:shadow-lg"
                             }`}
                           >
                             {selectedUser === user.id ? (
-                              <div className="flex flex-col items-center">
-                                <div className="text-4xl mb-1">🔄</div>
-                                <div className="text-xs text-white font-semibold">Sending...</div>
-                              </div>
+                              <LoadingSpinner size="md" color="border-purple-200 border-t-white" />
                             ) : (
                               <>
                                 <div>{user.avatar}</div>
@@ -696,7 +827,7 @@ function UserPageContent() {
     const inRequestsDisplay = incomingRequests && incomingRequests.length > 0;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-purple-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         {inRequestsDisplay && (
           <RequestBanner
             requests={incomingRequests}
@@ -790,7 +921,7 @@ function UserPageContent() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("A")}
                 className={`sm:aspect-square rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition ${
-                  myAnswer === "A" ? "ring-4 ring-purple-300" : ""
+                  myAnswer === "A" ? "ring-4 ring-primary-300" : ""
                 }`}
               >
                 <div className="text-4xl mb-3">A</div>
@@ -831,70 +962,88 @@ function UserPageContent() {
               </motion.button>
             </div>
 
-            {/* Progress button */}
+            {/* Progress button or warning */}
             <div className="w-full">
-              <motion.button
-                whileTap={canComplete ? { scale: 0.95 } : {}}
-                whileHover={canComplete ? { scale: 1.02 } : {}}
-                onClick={handleLeaveGroup}
-                disabled={!canComplete}
-                animate={canComplete ? {
-                  boxShadow: [
-                    "0 10px 40px rgba(59, 130, 246, 0.5)",
-                    "0 10px 60px rgba(34, 197, 94, 0.6)",
-                    "0 10px 40px rgba(59, 130, 246, 0.5)"
-                  ]
-                } : {}}
-                transition={canComplete ? {
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                } : {}}
-                className={`relative w-full h-16 rounded-xl overflow-hidden transition-all ${
-                  canComplete
-                    ? "ring-4 ring-green-400 cursor-pointer shadow-2xl"
-                    : "shadow-lg cursor-not-allowed"
-                }`}
-              >
-                {/* Background fill */}
+              {room?.windingDownStartedAt ? (
+                // Winding down - show warning instead of progress
                 <motion.div
-                  className={`absolute inset-0 ${
-                    canComplete
-                      ? "bg-gradient-to-r from-blue-500 via-green-500 to-blue-500 bg-[length:200%_100%]"
-                      : "bg-gradient-to-r from-blue-500 to-green-500"
-                  }`}
-                  initial={{ width: "0%" }}
-                  animate={
-                    canComplete
-                      ? {
-                          width: "100%",
-                          backgroundPosition: ["0% 0%", "100% 0%", "0% 0%"]
-                        }
-                      : { width: `${Math.min((elapsedTime / 60) * 100, 100)}%` }
-                  }
-                  transition={
-                    canComplete
-                      ? {
-                          width: { duration: 0.5 },
-                          backgroundPosition: { duration: 3, repeat: Infinity, ease: "linear" }
-                        }
-                      : { duration: 0.5 }
-                  }
-                />
-                {/* Gray background for unfilled portion */}
-                <div className="absolute inset-0 bg-gray-300 -z-10" />
-
-                {/* Button text */}
-                <motion.div
-                  className="relative z-10 flex items-center justify-center h-full"
-                  animate={canComplete ? { scale: [1, 1.05, 1] } : {}}
-                  transition={canComplete ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
+                  initial={{ scale: 0.95 }}
+                  animate={{ scale: [1, 1.02, 1] }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+                  className="relative w-full h-16 rounded-xl overflow-hidden ring-4 ring-orange-400 shadow-2xl"
                 >
-                  <p className="text-2xl font-bold text-white drop-shadow-lg">
-                    {canComplete ? "Done" : "Choose and discuss"}
-                  </p>
+                  <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-500" />
+                  <div className="relative z-10 flex items-center justify-center h-full">
+                    <p className="text-2xl font-bold text-white drop-shadow-lg">
+                      ⏰ Session ending soon!
+                    </p>
+                  </div>
                 </motion.div>
-              </motion.button>
+              ) : (
+                // Normal progress button
+                <motion.button
+                  whileTap={canComplete ? { scale: 0.95 } : {}}
+                  whileHover={canComplete ? { scale: 1.02 } : {}}
+                  onClick={handleLeaveGroup}
+                  disabled={!canComplete}
+                  animate={canComplete ? {
+                    boxShadow: [
+                      "0 10px 40px rgba(59, 130, 246, 0.5)",
+                      "0 10px 60px rgba(34, 197, 94, 0.6)",
+                      "0 10px 40px rgba(59, 130, 246, 0.5)"
+                    ]
+                  } : {}}
+                  transition={canComplete ? {
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  } : {}}
+                  className={`relative w-full h-16 rounded-xl overflow-hidden transition-all ${
+                    canComplete
+                      ? "ring-4 ring-green-400 cursor-pointer shadow-2xl"
+                      : "shadow-lg cursor-not-allowed"
+                  }`}
+                >
+                  {/* Background fill */}
+                  <motion.div
+                    className={`absolute inset-0 ${
+                      canComplete
+                        ? "bg-gradient-to-r from-blue-500 via-green-500 to-blue-500 bg-[length:200%_100%]"
+                        : "bg-gradient-to-r from-blue-500 to-green-500"
+                    }`}
+                    initial={{ width: "0%" }}
+                    animate={
+                      canComplete
+                        ? {
+                            width: "100%",
+                            backgroundPosition: ["0% 0%", "100% 0%", "0% 0%"]
+                          }
+                        : { width: `${Math.min((elapsedTime / 60) * 100, 100)}%` }
+                    }
+                    transition={
+                      canComplete
+                        ? {
+                            width: { duration: 0.5 },
+                            backgroundPosition: { duration: 3, repeat: Infinity, ease: "linear" }
+                          }
+                        : { duration: 0.5 }
+                    }
+                  />
+                  {/* Gray background for unfilled portion */}
+                  <div className="absolute inset-0 bg-gray-300 -z-10" />
+
+                  {/* Button text */}
+                  <motion.div
+                    className="relative z-10 flex items-center justify-center h-full"
+                    animate={canComplete ? { scale: [1, 1.05, 1] } : {}}
+                    transition={canComplete ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
+                  >
+                    <p className="text-2xl font-bold text-white drop-shadow-lg">
+                      {canComplete ? "Done" : "Choose and discuss"}
+                    </p>
+                  </motion.div>
+                </motion.button>
+              )}
             </div>
           </div>
         </motion.div>
@@ -936,6 +1085,64 @@ function UserPageContent() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <h2 className="text-4xl font-bold text-gray-900">
+            Results Starting...
+          </h2>
+        </motion.div>
+      </main>
+    );
+  }
+
+  // Phase 2: Slideshow viewing (replaces voting, waiting, and reveal)
+  if (state.matches("phase2_voting") || state.matches("phase2_waiting") || state.matches("phase2_reveal")) {
+    const questionText = state.context.gameQuestion || currentRound?.questionData?.text || currentRound?.round.questionText || "";
+    const roundNumber = state.context.currentRoundNumber || currentRound?.round.roundNumber;
+    const totalRounds = gameState?.game?.totalRounds || 0;
+    const isRevealed = !!currentRound?.round.revealedAt;
+
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={roundNumber}
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            transition={{
+              duration: 0.5,
+              ease: [0.4, 0.0, 0.2, 1]
+            }}
+            className="w-full max-w-2xl space-y-6"
+          >
+            {currentRound?.questionData && (
+              <SlideshowQuestion
+                questionText={questionText}
+                optionA={currentRound.questionData.optionA}
+                optionB={currentRound.questionData.optionB}
+                percentA={currentRound.questionData.percentA}
+                percentB={currentRound.questionData.percentB}
+                totalResponses={currentRound.questionData.totalResponses}
+                isRevealed={isRevealed}
+                roundNumber={roundNumber || 1}
+                variant="user"
+              />
+            )}
+
+          </motion.div>
+        </AnimatePresence>
+      </main>
+    );
+  }
+
+  // Phase 2: Complete state - just show session ended
+  if (state.matches("phase2_complete")) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-50 to-white">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           className="text-center space-y-6"
         >
           <div className="text-8xl">🔒</div>
@@ -956,9 +1163,8 @@ function UserPageContent() {
 export default function UserPage() {
   return (
     <Suspense fallback={
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-blue-50 to-white">
-        <div className="text-6xl">🔄</div>
-        <p className="text-xl text-gray-600 mt-4">Loading...</p>
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+        <LoadingSpinner size="lg" />
       </main>
     }>
       <UserPageContent />

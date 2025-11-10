@@ -11,10 +11,12 @@ export default defineSchema({
     phase1StartedAt: v.optional(v.number()),
     windingDownStartedAt: v.optional(v.number()), // When winding down period begins
     maxGroupSize: v.number(), // Maximum users per group (default 4)
+    roundNumber: v.number(), // Current round of data collection (starts at 1)
     createdAt: v.number(),
     expiresAt: v.number(), // Room expires after 7 days
   })
     .index("by_code", ["code"])
+    .index("by_pin", ["pin"])
     .index("by_expires_at", ["expiresAt"]),
 
   users: defineTable({
@@ -31,6 +33,7 @@ export default defineSchema({
     ), // User availability state
     lastRequestAt: v.optional(v.number()), // For spam prevention
     requestBackoffLevel: v.optional(v.number()), // Exponential backoff level (0, 1, 2, 3...)
+    lastCancelAt: v.optional(v.number()), // Track last cancel time for cooldown
   })
     .index("by_room", ["roomId"])
     .index("by_room_and_code", ["roomId", "code"])
@@ -83,9 +86,11 @@ export default defineSchema({
     userId: v.id("users"),
     choice: v.string(), // "A" or "B"
     skipped: v.boolean(),
+    roundNumber: v.number(), // Which round of data collection this answer is from
     timestamp: v.number(),
   })
     .index("by_room", ["roomId"])
+    .index("by_room_and_round", ["roomId", "roundNumber"])
     .index("by_user", ["userId"])
     .index("by_group", ["groupId"]),
 
@@ -108,4 +113,58 @@ export default defineSchema({
     .index("by_room_and_target", ["roomId", "targetId"])
     .index("by_expires_at", ["expiresAt"])
     .index("by_status", ["status"]),
+
+  // Phase 2: Summary Game tables
+  games: defineTable({
+    roomId: v.id("rooms"),
+    dataRoundNumber: v.number(), // Which round of Phase 1 data this game represents
+    status: v.union(
+      v.literal("not_started"),
+      v.literal("in_progress"),
+      v.literal("completed")
+    ),
+    currentRound: v.number(), // Current slide number (1-based)
+    totalRounds: v.number(), // Total number of slides/questions
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_room", ["roomId"])
+    .index("by_room_and_data_round", ["roomId", "dataRoundNumber"])
+    .index("by_status", ["status"]),
+
+  gameRounds: defineTable({
+    gameId: v.id("games"),
+    roundNumber: v.number(), // 1-based round number
+    questionId: v.id("questions"), // Original Phase 1 question
+    questionText: v.string(), // Generated Phase 2 question text
+    correctAnswer: v.string(), // "A" (≥50%) or "B" (<50%)
+    actualPercentage: v.number(), // Actual percentage who chose the tracked option
+    revealedAt: v.optional(v.number()),
+  })
+    .index("by_game", ["gameId"])
+    .index("by_game_and_round", ["gameId", "roundNumber"]),
+
+  votes: defineTable({
+    roundId: v.id("gameRounds"),
+    gameId: v.id("games"),
+    userId: v.id("users"),
+    choice: v.string(), // "A" or "B"
+    isCorrect: v.boolean(),
+    timestamp: v.number(),
+  })
+    .index("by_round", ["roundId"])
+    .index("by_game", ["gameId"])
+    .index("by_user", ["userId"])
+    .index("by_game_and_user", ["gameId", "userId"]),
+
+  scores: defineTable({
+    gameId: v.id("games"),
+    userId: v.id("users"),
+    totalCorrect: v.number(),
+    totalVotes: v.number(),
+    rank: v.optional(v.number()), // Final ranking (1-5 for leaderboard)
+  })
+    .index("by_game", ["gameId"])
+    .index("by_user", ["userId"])
+    .index("by_game_and_rank", ["gameId", "rank"]),
 });

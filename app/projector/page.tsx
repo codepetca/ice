@@ -6,11 +6,16 @@ import { api } from "@/convex/_generated/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { Id } from "@/convex/_generated/dataModel";
 import { Keypad } from "@/components/Keypad";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { SlideshowQuestion } from "@/components/SlideshowQuestion";
+import { Settings, Sun, Moon } from "lucide-react";
 
 export default function ProjectorPage() {
   const [roomCode, setClassCode] = useState("");
   const [connected, setConnected] = useState(false);
   const [storedClassCode, setStoredClassCode] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
 
   const room = useQuery(
     api.rooms.getRoom,
@@ -22,6 +27,22 @@ export default function ProjectorPage() {
     room?._id ? { roomId: room._id } : "skip"
   );
 
+  // Phase 2 queries
+  const game = useQuery(
+    api.games.getGameByRoom,
+    room?._id ? { roomId: room._id } : "skip"
+  );
+
+  const currentRound = useQuery(
+    api.games.getCurrentRound,
+    game ? { gameId: game._id } : "skip"
+  );
+
+  const leaderboard = useQuery(
+    api.games.getLeaderboard,
+    game && game.status === "completed" ? { gameId: game._id } : "skip"
+  );
+
   // Auto-connect when 4 digits entered
   useEffect(() => {
     if (roomCode.length === 4) {
@@ -30,9 +51,84 @@ export default function ProjectorPage() {
     }
   }, [roomCode]);
 
+  // Initialize dark mode
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const shouldBeDark = stored === "dark" || (!stored && prefersDark);
+    setIsDark(shouldBeDark);
+
+    if (shouldBeDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newDarkMode = !isDark;
+    setIsDark(newDarkMode);
+
+    if (newDarkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+    setSettingsOpen(false);
+  };
+
+  const SettingsButton = () => (
+    <div className="fixed bottom-8 left-8 z-50">
+      <button
+        onClick={() => setSettingsOpen(!settingsOpen)}
+        className="p-3 bg-white/20 backdrop-blur hover:bg-white/30 rounded-lg transition-all duration-300"
+        aria-label="Settings"
+      >
+        <Settings className="w-5 h-5 text-white" />
+      </button>
+
+      {/* Settings Dropdown */}
+      <AnimatePresence>
+        {settingsOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              onClick={() => setSettingsOpen(false)}
+              className="fixed inset-0 z-40"
+            />
+
+            {/* Menu */}
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute bottom-16 left-0 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden min-w-[180px]"
+            >
+              <button
+                onClick={toggleDarkMode}
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted transition-colors text-left"
+              >
+                <div className="w-5 h-5 flex items-center justify-center text-foreground">
+                  {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </div>
+                <span className="text-sm font-medium text-foreground">
+                  {isDark ? "Light Mode" : "Dark Mode"}
+                </span>
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+
   if (!connected) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-br from-purple-900 to-blue-900 text-white">
+        <SettingsButton />
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -40,7 +136,7 @@ export default function ProjectorPage() {
         >
           <div className="text-6xl mb-4">📺</div>
           <h1 className="text-5xl font-bold mb-4">Projector View</h1>
-          <p className="text-xl text-purple-200 mb-8">
+          <p className="text-xl text-accent-200 mb-8">
             Enter the room code
           </p>
 
@@ -49,7 +145,7 @@ export default function ProjectorPage() {
             {[0, 1, 2, 3].map((index) => (
               <div
                 key={index}
-                className="w-16 h-20 flex items-center justify-center text-4xl font-bold border-2 border-purple-300 rounded-xl bg-white text-gray-900"
+                className="w-16 h-20 flex items-center justify-center text-4xl font-bold border-2 border-primary-300 rounded-xl bg-white text-gray-900"
               >
                 {roomCode[index] || ""}
               </div>
@@ -66,23 +162,86 @@ export default function ProjectorPage() {
   if (!room) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-br from-purple-900 to-blue-900 text-white">
-        <div className="text-center space-y-4">
-          <div className="text-6xl">⏳</div>
-          <p className="text-2xl">Loading class...</p>
-        </div>
+        <SettingsButton />
+        <LoadingSpinner size="lg" color="border-primary-300 border-t-white" />
       </main>
     );
   }
 
   const timeElapsed = room.phase1StartedAt
-    ? Math.floor((Date.now() - room.phase1StartedAt) / 1000)
+    ? Math.max(0, Math.floor((Date.now() - room.phase1StartedAt) / 1000))
     : 0;
   const timeRemaining = Math.max(0, room.phase1Duration - timeElapsed);
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
 
+  // Phase 2 Slideshow
+  if (game && game.status === "in_progress" && currentRound) {
+    return (
+      <main className="min-h-screen p-12 bg-background dark:bg-card text-white flex items-center justify-center">
+        <SettingsButton />
+
+        {/* Slide Counter - Top Center */}
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 text-center">
+          <div className="text-2xl text-muted-foreground">
+            {currentRound.round.roundNumber} / {game.totalRounds}
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto space-y-12">
+          {/* Question */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentRound.round.roundNumber}
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{
+                duration: 0.6,
+                ease: [0.4, 0.0, 0.2, 1] // Custom cubic-bezier for smooth easing
+              }}
+              className="text-center"
+            >
+              {currentRound.questionData && (
+                <SlideshowQuestion
+                  questionText={currentRound.questionData.text || currentRound.round.questionText}
+                  optionA={currentRound.questionData.optionA}
+                  optionB={currentRound.questionData.optionB}
+                  percentA={currentRound.questionData.percentA}
+                  percentB={currentRound.questionData.percentB}
+                  totalResponses={currentRound.questionData.totalResponses}
+                  isRevealed={!!currentRound.round.revealedAt}
+                  roundNumber={currentRound.round.roundNumber}
+                  variant="projector"
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Disconnect button */}
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          onClick={() => {
+            setConnected(false);
+            setStoredClassCode(null);
+            setClassCode("");
+          }}
+          className="fixed bottom-8 right-8 px-6 py-3 text-lg bg-white/20 backdrop-blur hover:bg-white/30 rounded-xl transition-all duration-300"
+        >
+          Disconnect
+        </motion.button>
+      </main>
+    );
+  }
+
+  // Phase 1
   return (
-    <main className="min-h-screen p-12 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
+    <main className="min-h-screen p-12 bg-background dark:bg-card text-white">
+      <SettingsButton />
+
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Header */}
         <motion.div
@@ -91,7 +250,7 @@ export default function ProjectorPage() {
           className="text-center space-y-4"
         >
           <h1 className="text-7xl font-bold">{room.name}</h1>
-          <div className="text-3xl text-purple-200">
+          <div className="text-3xl text-accent-200">
             Room Code: <span className="font-bold text-white">{roomCode}</span>
           </div>
         </motion.div>
@@ -122,7 +281,7 @@ export default function ProjectorPage() {
               exit={{ opacity: 0, scale: 0.8 }}
               className="text-center space-y-4"
             >
-              <div className="text-2xl text-purple-200 uppercase tracking-wider">
+              <div className="text-2xl text-accent-200 uppercase tracking-wider">
                 Time Remaining
               </div>
               <div className="text-9xl font-bold tabular-nums">
@@ -143,16 +302,16 @@ export default function ProjectorPage() {
             <div className="text-8xl font-bold text-white">
               {stats?.totalUsers || 0}
             </div>
-            <div className="text-3xl text-purple-200 uppercase tracking-wider">
+            <div className="text-3xl text-accent-200 uppercase tracking-wider">
               Students
             </div>
           </div>
 
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 text-center space-y-4">
-            <div className="text-8xl font-bold text-blue-300">
+            <div className="text-8xl font-bold text-secondary-300">
               {stats?.activeGroups || 0}
             </div>
-            <div className="text-3xl text-purple-200 uppercase tracking-wider">
+            <div className="text-3xl text-accent-200 uppercase tracking-wider">
               Active Groups
             </div>
           </div>
@@ -161,7 +320,7 @@ export default function ProjectorPage() {
             <div className="text-8xl font-bold text-green-300">
               {stats?.completedGroups || 0}
             </div>
-            <div className="text-3xl text-purple-200 uppercase tracking-wider">
+            <div className="text-3xl text-accent-200 uppercase tracking-wider">
               Completed
             </div>
           </div>
@@ -175,10 +334,10 @@ export default function ProjectorPage() {
             transition={{ delay: 0.4 }}
             className="text-center space-y-6 pt-8"
           >
-            <div className="text-4xl font-semibold text-purple-200">
+            <div className="text-4xl font-semibold text-accent-200">
               Waiting for teacher to start Phase 1...
             </div>
-            <div className="text-2xl text-purple-300">
+            <div className="text-2xl text-accent-300">
               Students can join at <span className="font-mono">/student</span>
             </div>
           </motion.div>
@@ -191,7 +350,7 @@ export default function ProjectorPage() {
             transition={{ delay: 0.4 }}
             className="text-center space-y-4 pt-8"
           >
-            <div className="text-3xl font-semibold text-purple-200">
+            <div className="text-3xl font-semibold text-accent-200">
               💬 Students are connecting and talking!
             </div>
           </motion.div>

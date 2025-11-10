@@ -79,27 +79,29 @@ export function ConfirmDialogProvider({
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 pointer-events-auto"
+                className="bg-card text-card-foreground rounded-lg shadow-lg max-w-md w-full p-6 space-y-4 pointer-events-auto border border-border"
               >
-                <h3 className="text-2xl font-bold text-gray-900">
+                <h3 className="text-2xl font-display font-bold">
                   {dialog.options.title}
                 </h3>
-                <p className="text-lg text-gray-600">
+                <p className="text-base font-sans text-muted-foreground">
                   {dialog.options.message}
                 </p>
                 <div className="flex gap-3 pt-2">
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
                     onClick={handleCancel}
-                    className="flex-1 px-6 py-3 text-lg font-semibold text-gray-700 bg-gray-200 rounded-xl hover:bg-gray-300 transition"
+                    className="flex-1 px-4 py-2.5 text-base font-semibold bg-muted rounded-lg hover:bg-muted/80 transition-all"
                   >
                     {dialog.options.cancelText || "Cancel"}
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
                     onClick={handleConfirm}
-                    className="flex-1 px-6 py-3 text-lg font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition"
+                    className="flex-1 px-4 py-2.5 text-base font-semibold text-white bg-red-500 rounded-lg hover:bg-red-600 shadow-sm transition-all"
                   >
                     {dialog.options.confirmText || "Confirm"}
-                  </button>
+                  </motion.button>
                 </div>
               </motion.div>
             </div>

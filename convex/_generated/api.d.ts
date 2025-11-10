@@ -10,10 +10,12 @@
 
 import type * as crons from "../crons.js";
 import type * as dev from "../dev.js";
+import type * as games from "../games.js";
 import type * as groups from "../groups.js";
 import type * as questions from "../questions.js";
 import type * as rooms from "../rooms.js";
 import type * as seedBulkQuestions from "../seedBulkQuestions.js";
+import type * as testData from "../testData.js";
 import type * as users from "../users.js";
 
 import type {
@@ -33,10 +35,12 @@ import type {
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   dev: typeof dev;
+  games: typeof games;
   groups: typeof groups;
   questions: typeof questions;
   rooms: typeof rooms;
   seedBulkQuestions: typeof seedBulkQuestions;
+  testData: typeof testData;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

@@ -48,3 +48,26 @@ export const clearUserData = mutation({
     };
   },
 });
+
+export const fixQuestionText = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const questions = await ctx.db.query("questions").collect();
+    let updated = 0;
+
+    for (const question of questions) {
+      if (question.text === "Would you rather...") {
+        await ctx.db.patch(question._id, {
+          text: "Would you rather"
+        });
+        updated++;
+      }
+    }
+
+    return {
+      message: `Updated ${updated} questions to remove "..."`,
+      totalQuestions: questions.length,
+      updated
+    };
+  },
+});

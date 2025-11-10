@@ -19,7 +19,9 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
   return (
     <ConvexProvider client={convex}>
       <ToastProvider>
-        <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+        <ConfirmDialogProvider>
+          {children}
+        </ConfirmDialogProvider>
       </ToastProvider>
     </ConvexProvider>
   );
