@@ -32,6 +32,7 @@ export default defineSchema({
     ), // User availability state
     lastRequestAt: v.optional(v.number()), // For spam prevention
     requestBackoffLevel: v.optional(v.number()), // Exponential backoff level (0, 1, 2, 3...)
+    lastCancelAt: v.optional(v.number()), // Track last cancel time for cooldown
   })
     .index("by_room", ["roomId"])
     .index("by_room_and_code", ["roomId", "code"])

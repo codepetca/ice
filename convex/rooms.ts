@@ -58,11 +58,12 @@ export const cleanupExpiredRooms = internalMutation({
   },
 });
 
-// Generate a random 3-letter room code (no vowels)
+// Generate a random 4-letter room code
+// Excludes vowels (A,E,I,O,U) to prevent inappropriate words
 function generateRoomCode(): string {
   const consonants = "BCDFGHJKLMNPQRSTVWXYZ";
   let code = "";
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     code += consonants.charAt(Math.floor(Math.random() * consonants.length));
   }
   return code;
@@ -83,7 +84,7 @@ export const createRoom = mutation({
     const code = generateRoomCode();
     const pin = generatePIN();
     const now = Date.now();
-    const sevenDays = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+    const fortyEightHours = 48 * 60 * 60 * 1000; // 48 hours in milliseconds
 
     const roomId = await ctx.db.insert("rooms", {
       code,
@@ -93,7 +94,7 @@ export const createRoom = mutation({
       phase1Duration: args.phase1Duration,
       maxGroupSize: args.maxGroupSize || 4,
       createdAt: now,
-      expiresAt: now + sevenDays,
+      expiresAt: now + fortyEightHours,
     });
 
     return { roomId, code, pin };
@@ -167,11 +168,55 @@ export const stopPhase1 = mutation({
   },
 });
 
+// Adjust Phase 1 duration (add or subtract time)
+export const adjustPhase1Duration = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    pin: v.string(),
+    adjustmentSeconds: v.number(), // positive to add, negative to subtract
+  },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.pin !== args.pin) throw new Error("Invalid PIN");
+
+    // Calculate new duration
+    let newDuration = room.phase1Duration + args.adjustmentSeconds;
+
+    // Enforce constraints: min 60s (1 min), max 1200s (20 min)
+    newDuration = Math.max(60, Math.min(1200, newDuration));
+
+    await ctx.db.patch(args.roomId, {
+      phase1Duration: newDuration,
+    });
+  },
+});
+
 // Internal mutation to fully stop Phase 1 after winding down
 export const finalizeStop = internalMutation({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.roomId, {
+      phase1Active: false,
+      windingDownStartedAt: undefined,
+    });
+  },
+});
+
+// Reset room to ready state (before Phase 1 was started)
+export const resetRoom = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    pin: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.pin !== args.pin) throw new Error("Invalid PIN");
+
+    // Clear Phase 1 timestamps to return to ready state
+    await ctx.db.patch(args.roomId, {
+      phase1StartedAt: undefined,
       phase1Active: false,
       windingDownStartedAt: undefined,
     });

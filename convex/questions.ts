@@ -54,7 +54,7 @@ export const seedQuestions = mutation({
 
     const questions = [
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "food",
         optionA: "Pizza for every meal",
         optionB: "Never eat pizza again",
@@ -62,7 +62,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "superpowers",
         optionA: "Fly",
         optionB: "Be invisible",
@@ -70,7 +70,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "time",
         optionA: "Visit the past",
         optionB: "Visit the future",
@@ -78,7 +78,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "preferences",
         optionA: "Always be too hot",
         optionB: "Always be too cold",
@@ -86,7 +86,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "lifestyle",
         optionA: "Live in the city",
         optionB: "Live in the countryside",
@@ -94,7 +94,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "entertainment",
         optionA: "Only watch movies",
         optionB: "Only watch TV series",
@@ -102,7 +102,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "social",
         optionA: "Be able to talk to animals",
         optionB: "Be able to speak all languages",
@@ -110,7 +110,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "food",
         optionA: "Sweet breakfast",
         optionB: "Savory breakfast",
@@ -118,7 +118,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "adventure",
         optionA: "Explore the ocean depths",
         optionB: "Explore outer space",
@@ -126,7 +126,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "preferences",
         optionA: "Never use social media again",
         optionB: "Never watch another movie/show",
@@ -134,7 +134,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "talents",
         optionA: "Be a great artist",
         optionB: "Be a great musician",
@@ -142,7 +142,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "food",
         optionA: "Coffee",
         optionB: "Tea",
@@ -150,7 +150,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "lifestyle",
         optionA: "Always be 10 minutes late",
         optionB: "Always be 20 minutes early",
@@ -158,7 +158,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "entertainment",
         optionA: "Read minds",
         optionB: "Teleport anywhere",
@@ -166,7 +166,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "pets",
         optionA: "Have a dog",
         optionB: "Have a cat",
@@ -174,7 +174,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "superpowers",
         optionA: "Control fire",
         optionB: "Control water",
@@ -182,7 +182,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "adventure",
         optionA: "Live in a world with dragons",
         optionB: "Live in a world with robots",
@@ -190,7 +190,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "talents",
         optionA: "Be the funniest person in the room",
         optionB: "Be the smartest person in the room",
@@ -198,7 +198,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "food",
         optionA: "Only eat desserts",
         optionB: "Never eat desserts again",
@@ -206,7 +206,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "adventure",
         optionA: "Explore a haunted mansion",
         optionB: "Explore an abandoned amusement park",
@@ -214,7 +214,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "lifestyle",
         optionA: "Have unlimited money",
         optionB: "Have unlimited time",
@@ -222,7 +222,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "entertainment",
         optionA: "Live in your favorite movie",
         optionB: "Live in your favorite video game",
@@ -230,7 +230,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "social",
         optionA: "Always know when someone is lying",
         optionB: "Always get away with lying",
@@ -238,7 +238,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "preferences",
         optionA: "Never have to sleep",
         optionB: "Never have to eat",
@@ -246,7 +246,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "talents",
         optionA: "Win an Olympic gold medal",
         optionB: "Win an Oscar",
@@ -254,7 +254,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "adventure",
         optionA: "Climb Mount Everest",
         optionB: "Scuba dive the Great Barrier Reef",
@@ -262,7 +262,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "superpowers",
         optionA: "Super strength",
         optionB: "Super speed",
@@ -270,7 +270,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "lifestyle",
         optionA: "Always have to sing instead of speak",
         optionB: "Always have to dance everywhere you go",
@@ -278,7 +278,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "preferences",
         optionA: "Live without music",
         optionB: "Live without movies",
@@ -286,7 +286,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "adventure",
         optionA: "Time travel to meet your ancestors",
         optionB: "Time travel to meet your descendants",
@@ -294,7 +294,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "social",
         optionA: "Be famous but have no privacy",
         optionB: "Be unknown but have complete freedom",
@@ -302,7 +302,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "food",
         optionA: "Eat only spicy food",
         optionB: "Eat only bland food",
@@ -310,7 +310,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "talents",
         optionA: "Master any musical instrument instantly",
         optionB: "Speak any language instantly",
@@ -318,7 +318,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "lifestyle",
         optionA: "Live on a beach",
         optionB: "Live in the mountains",
@@ -326,7 +326,7 @@ export const seedQuestions = mutation({
         active: true,
       },
       {
-        text: "Would you rather...",
+        text: "Would you rather",
         category: "preferences",
         optionA: "Always be stuck in traffic",
         optionB: "Always have a slow internet connection",

@@ -232,6 +232,12 @@ export const sendGroupRequest = mutation({
       throw new Error("Please wait...");
     }
 
+    // Prevent immediate resend after cancel (3-second cooldown)
+    const CANCEL_COOLDOWN = 3000; // 3 seconds
+    if (user.lastCancelAt && now - user.lastCancelAt < CANCEL_COOLDOWN) {
+      throw new Error("Please wait before sending another request");
+    }
+
     // Check if requester already has a pending outgoing request
     const existingOutgoing = await ctx.db
       .query("groupRequests")
@@ -530,9 +536,10 @@ export const acceptGroupRequest = mutation({
       room,
     });
 
-    // Reset backoff level for requester on successful acceptance
+    // Reset backoff level and cancel tracking for requester on successful acceptance
     await ctx.db.patch(request.requesterId, {
       requestBackoffLevel: 0,
+      lastCancelAt: undefined,
     });
 
     return result;
@@ -601,8 +608,14 @@ export const cancelGroupRequest = mutation({
       }
     }
 
-    // Reset user status
-    await ctx.db.patch(args.userId, { status: "available" });
+    // Reset user status and track cancel time
+    const now = Date.now();
+    await ctx.db.patch(args.userId, {
+      status: "available",
+      lastCancelAt: now,
+      // Increase backoff level on cancel to prevent spam (max 4)
+      requestBackoffLevel: Math.min((user.requestBackoffLevel || 0) + 1, 4),
+    });
 
     return { success: true };
   },

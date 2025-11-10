@@ -1,6 +1,6 @@
 [
   {
-    "text": "Would you rather...",
+    "text": "Would you rather",
     "category": "science",
     "optionA": "Discover a new planet",
     "optionB": "Discover a cure for a disease",
@@ -8,7 +8,7 @@
     "active": true
   },
   {
-    "text": "Would you rather...",
+    "text": "Would you rather",
     "category": "fantasy",
     "optionA": "Be a wizard",
     "optionB": "Be a knight",
@@ -16,7 +16,7 @@
     "active": true
   },
   {
-    "text": "Would you rather...",
+    "text": "Would you rather",
     "category": "mystery",
     "optionA": "Solve a famous cold case",
     "optionB": "Discover a hidden treasure",

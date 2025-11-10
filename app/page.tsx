@@ -10,7 +10,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 export default function Home() {
   const { showToast } = useToast();
-  const [code, setCode] = useState(["", "", ""]);
+  const [code, setCode] = useState(["", "", "", ""]);
   const [validating, setValidating] = useState(false);
   const router = useRouter();
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -18,7 +18,7 @@ export default function Home() {
   const fullCode = code.join("");
   const room = useQuery(
     api.rooms.getRoom,
-    fullCode.length === 3 ? { code: fullCode } : "skip"
+    fullCode.length === 4 ? { code: fullCode } : "skip"
   );
 
   // Autofocus on first input on mount
@@ -47,9 +47,9 @@ export default function Home() {
     return () => document.removeEventListener("keydown", handleGlobalKeyDown);
   }, [code]);
 
-  // Auto-advance when all 3 letters entered and room exists
+  // Auto-advance when all 4 letters entered and room exists
   useEffect(() => {
-    if (fullCode.length === 3 && room !== undefined && !validating) {
+    if (fullCode.length === 4 && room !== undefined && !validating) {
       if (room) {
         // Room exists, show loading state then navigate
         setValidating(true);
@@ -59,7 +59,7 @@ export default function Home() {
         setValidating(true);
         showToast("Room not found - please check the code", "error");
         setTimeout(() => {
-          setCode(["", "", ""]);
+          setCode(["", "", "", ""]);
           setValidating(false);
           inputRefs.current[0]?.focus();
         }, 1500);
@@ -78,7 +78,7 @@ export default function Home() {
       setCode(newCode);
 
       // Auto-focus next input
-      if (index < 2) {
+      if (index < 3) {
         inputRefs.current[index + 1]?.focus();
       }
     }
@@ -109,7 +109,7 @@ export default function Home() {
     const validChars = pastedText.replace(/\s/g, ""); // Remove whitespace
 
     const newCode = [...code];
-    for (let i = 0; i < Math.min(3, validChars.length); i++) {
+    for (let i = 0; i < Math.min(4, validChars.length); i++) {
       newCode[i] = validChars[i];
     }
     setCode(newCode);
@@ -141,7 +141,7 @@ export default function Home() {
         <div className="space-y-4">
           <p className="text-center text-sm font-sans text-muted-foreground uppercase tracking-wide">Enter room code</p>
           <div className="flex justify-center gap-3">
-            {[0, 1, 2].map((index) => (
+            {[0, 1, 2, 3].map((index) => (
               <input
                 key={index}
                 ref={(el) => { inputRefs.current[index] = el; }}
@@ -151,14 +151,14 @@ export default function Home() {
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 onPaste={handlePaste}
                 maxLength={1}
-                disabled={validating || (fullCode.length === 3 && room === undefined)}
+                disabled={validating || (fullCode.length === 4 && room === undefined)}
                 className="w-20 h-24 text-center text-5xl font-display font-bold border-2 border-border rounded-lg bg-primary text-primary-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/20 transition-all uppercase disabled:opacity-50"
               />
             ))}
           </div>
 
           {/* Loading indicator */}
-          {(validating || (fullCode.length === 3 && room === undefined)) && (
+          {(validating || (fullCode.length === 4 && room === undefined)) && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

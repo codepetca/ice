@@ -248,11 +248,30 @@ export const rejoinRoom = mutation({
       throw new Error("Room has expired");
     }
 
-    // Reset user status to available (in case they were in a pending state)
-    await ctx.db.patch(args.userId, {
-      status: "available",
-      currentGroupId: undefined,
-    });
+    // Check if user has an active group to rejoin
+    if (user.currentGroupId) {
+      const group = await ctx.db.get(user.currentGroupId);
+
+      // If group exists and is still active, rejoin it
+      if (group && (group.status === "active" || group.status === "in_question" || group.status === "talking")) {
+        await ctx.db.patch(args.userId, {
+          status: "in_group",
+          // Keep currentGroupId to preserve membership
+        });
+      } else {
+        // Group is completed or doesn't exist, reset user
+        await ctx.db.patch(args.userId, {
+          status: "available",
+          currentGroupId: undefined,
+        });
+      }
+    } else {
+      // No group to rejoin, reset to available
+      await ctx.db.patch(args.userId, {
+        status: "available",
+        currentGroupId: undefined,
+      });
+    }
 
     return {
       userId: user._id,

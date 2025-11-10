@@ -106,7 +106,21 @@ export const generateGame = mutation({
       .first();
 
     if (existingGame) {
-      return { gameId: existingGame._id, message: "Game already exists" };
+      // If the game is completed, delete it and create a new one
+      if (existingGame.status === "completed") {
+        // Delete old game rounds
+        const rounds = await ctx.db
+          .query("gameRounds")
+          .withIndex("by_game", (q) => q.eq("gameId", existingGame._id))
+          .collect();
+        for (const round of rounds) {
+          await ctx.db.delete(round._id);
+        }
+        // Delete old game
+        await ctx.db.delete(existingGame._id);
+      } else {
+        return { gameId: existingGame._id, message: "Game already exists", totalRounds: existingGame.totalRounds };
+      }
     }
 
     // Generate questions
@@ -264,11 +278,10 @@ export const revealRound = mutation({
   },
 });
 
-// Advance to the next round (with looping support)
+// Advance to the next round
 export const advanceRound = mutation({
   args: {
     gameId: v.id("games"),
-    loop: v.optional(v.boolean()), // If true, loop back to first slide instead of completing
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
@@ -289,53 +302,36 @@ export const advanceRound = mutation({
 
     // Check if this is the last round
     if (game.currentRound >= game.totalRounds) {
-      if (args.loop) {
-        // Loop back to first round
-        // First, un-reveal all rounds
-        const rounds = await ctx.db
-          .query("gameRounds")
-          .withIndex("by_game", (q) => q.eq("gameId", args.gameId))
-          .collect();
-
-        for (const round of rounds) {
-          await ctx.db.patch(round._id, {
-            revealedAt: undefined,
-          });
-        }
-
-        // Reset to first round
-        await ctx.db.patch(args.gameId, {
-          currentRound: 1,
-        });
-      } else {
-        // End the game
-        await ctx.db.patch(args.gameId, {
-          status: "completed",
-          completedAt: Date.now(),
-        });
-
-        // Calculate final rankings
-        const scores = await ctx.db
-          .query("scores")
-          .withIndex("by_game", (q) => q.eq("gameId", args.gameId))
-          .collect();
-
-        // Sort by totalCorrect descending
-        scores.sort((a, b) => b.totalCorrect - a.totalCorrect);
-
-        // Assign ranks (only top 5)
-        for (let i = 0; i < Math.min(5, scores.length); i++) {
-          await ctx.db.patch(scores[i]._id, {
-            rank: i + 1,
-          });
-        }
-      }
+      // Don't auto-complete - stay on last slide
+      throw new Error("Already on last slide");
     } else {
       // Advance to next round
       await ctx.db.patch(args.gameId, {
         currentRound: game.currentRound + 1,
       });
     }
+  },
+});
+
+// Go back to the previous round
+export const previousRound = mutation({
+  args: {
+    gameId: v.id("games"),
+  },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get(args.gameId);
+    if (!game) throw new Error("Game not found");
+    if (game.status !== "in_progress") throw new Error("Game not in progress");
+
+    // Can't go back from round 1
+    if (game.currentRound <= 1) {
+      throw new Error("Already at first round");
+    }
+
+    // Go back one round
+    await ctx.db.patch(args.gameId, {
+      currentRound: game.currentRound - 1,
+    });
   },
 });
 
@@ -418,6 +414,54 @@ export const getCurrentRound = query({
       .query("gameRounds")
       .withIndex("by_game_and_round", (q) =>
         q.eq("gameId", args.gameId).eq("roundNumber", game.currentRound)
+      )
+      .first();
+
+    if (!round) return null;
+
+    // Get original question to fetch optionA and optionB
+    const question = await ctx.db.get(round.questionId);
+
+    // Get all answers for this question in this room
+    const answers = await ctx.db
+      .query("answers")
+      .withIndex("by_room", (q) => q.eq("roomId", game.roomId))
+      .filter((q) => q.eq(q.field("questionId"), round.questionId))
+      .collect();
+
+    const validAnswers = answers.filter((a) => !a.skipped);
+    const aCount = validAnswers.filter((a) => a.choice === "A").length;
+    const bCount = validAnswers.filter((a) => a.choice === "B").length;
+    const total = validAnswers.length;
+
+    const percentA = total > 0 ? Math.round((aCount / total) * 100) : 0;
+    const percentB = total > 0 ? Math.round((bCount / total) * 100) : 0;
+
+    return {
+      round,
+      questionData: {
+        text: question?.text || round.questionText,
+        optionA: (question as any)?.optionA || "Option A",
+        optionB: (question as any)?.optionB || "Option B",
+        percentA,
+        percentB,
+        totalResponses: total,
+      },
+    };
+  },
+});
+
+// Get a specific round by game ID and round number (regardless of game status)
+export const getRoundByNumber = query({
+  args: { gameId: v.id("games"), roundNumber: v.number() },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get(args.gameId);
+    if (!game) return null;
+
+    const round = await ctx.db
+      .query("gameRounds")
+      .withIndex("by_game_and_round", (q) =>
+        q.eq("gameId", args.gameId).eq("roundNumber", args.roundNumber)
       )
       .first();
 

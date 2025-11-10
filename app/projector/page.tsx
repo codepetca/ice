@@ -8,11 +8,14 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Keypad } from "@/components/Keypad";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
+import { Settings, Sun, Moon } from "lucide-react";
 
 export default function ProjectorPage() {
   const [roomCode, setClassCode] = useState("");
   const [connected, setConnected] = useState(false);
   const [storedClassCode, setStoredClassCode] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
 
   const room = useQuery(
     api.rooms.getRoom,
@@ -48,9 +51,84 @@ export default function ProjectorPage() {
     }
   }, [roomCode]);
 
+  // Initialize dark mode
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const shouldBeDark = stored === "dark" || (!stored && prefersDark);
+    setIsDark(shouldBeDark);
+
+    if (shouldBeDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newDarkMode = !isDark;
+    setIsDark(newDarkMode);
+
+    if (newDarkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+    setSettingsOpen(false);
+  };
+
+  const SettingsButton = () => (
+    <div className="fixed bottom-8 left-8 z-50">
+      <button
+        onClick={() => setSettingsOpen(!settingsOpen)}
+        className="p-3 bg-white/20 backdrop-blur hover:bg-white/30 rounded-lg transition-all duration-300"
+        aria-label="Settings"
+      >
+        <Settings className="w-5 h-5 text-white" />
+      </button>
+
+      {/* Settings Dropdown */}
+      <AnimatePresence>
+        {settingsOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              onClick={() => setSettingsOpen(false)}
+              className="fixed inset-0 z-40"
+            />
+
+            {/* Menu */}
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute bottom-16 left-0 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden min-w-[180px]"
+            >
+              <button
+                onClick={toggleDarkMode}
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted transition-colors text-left"
+              >
+                <div className="w-5 h-5 flex items-center justify-center text-foreground">
+                  {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </div>
+                <span className="text-sm font-medium text-foreground">
+                  {isDark ? "Light Mode" : "Dark Mode"}
+                </span>
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+
   if (!connected) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-br from-purple-900 to-blue-900 text-white">
+        <SettingsButton />
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -84,6 +162,7 @@ export default function ProjectorPage() {
   if (!room) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-br from-purple-900 to-blue-900 text-white">
+        <SettingsButton />
         <LoadingSpinner size="lg" color="border-primary-300 border-t-white" />
       </main>
     );
@@ -96,47 +175,19 @@ export default function ProjectorPage() {
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
 
-  // Phase 2 Completed
-  if (game && game.status === "completed") {
-    return (
-      <main className="min-h-screen p-12 bg-background dark:bg-card text-white">
-        <div className="max-w-7xl mx-auto space-y-12 flex items-center justify-center min-h-screen">
-          {/* Completion Message */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", duration: 0.8 }}
-            className="text-center space-y-8"
-          >
-            <div className="text-9xl">✅</div>
-            <h1 className="text-8xl font-bold">Slideshow Complete!</h1>
-            <div className="text-4xl text-accent-200">
-              Thank you for participating
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Disconnect button */}
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          onClick={() => {
-            setConnected(false);
-            setStoredClassCode(null);
-            setClassCode("");
-          }}
-          className="fixed bottom-8 right-8 px-6 py-3 text-lg bg-white/20 backdrop-blur hover:bg-white/30 rounded-xl transition"
-        >
-          Disconnect
-        </motion.button>
-      </main>
-    );
-  }
-
-  // Phase 2 Slideshow In Progress
+  // Phase 2 Slideshow
   if (game && game.status === "in_progress" && currentRound) {
     return (
       <main className="min-h-screen p-12 bg-background dark:bg-card text-white flex items-center justify-center">
+        <SettingsButton />
+
+        {/* Slide Counter - Top Center */}
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 text-center">
+          <div className="text-2xl text-muted-foreground">
+            {currentRound.round.roundNumber} / {game.totalRounds}
+          </div>
+        </div>
+
         <div className="max-w-7xl mx-auto space-y-12">
           {/* Question */}
           <AnimatePresence mode="wait">
@@ -189,6 +240,8 @@ export default function ProjectorPage() {
   // Phase 1
   return (
     <main className="min-h-screen p-12 bg-background dark:bg-card text-white">
+      <SettingsButton />
+
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Header */}
         <motion.div

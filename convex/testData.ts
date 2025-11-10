@@ -6,11 +6,11 @@ export const generateTestRoom = mutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
-    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    const fortyEightHours = 48 * 60 * 60 * 1000; // 48 hours in milliseconds
 
-    // Create test room with code "!!!" (special characters for easy testing)
+    // Create test room with code "TEST" (4 letters for easy testing)
     const roomId = await ctx.db.insert("rooms", {
-      code: "!!!",
+      code: "TEST",
       pin: "1234",
       name: "Test Room",
       phase1Active: false,
@@ -18,7 +18,7 @@ export const generateTestRoom = mutation({
       phase1StartedAt: now - 600000, // Started 10 minutes ago (finished)
       maxGroupSize: 4,
       createdAt: now,
-      expiresAt: now + sevenDays,
+      expiresAt: now + fortyEightHours,
     });
 
     // Test avatars
@@ -100,14 +100,57 @@ export const generateTestRoom = mutation({
       console.log(`Created answers for question ${i + 1}: ${dist.percentA}% chose A (${dist.name})`);
     }
 
+    // Generate the game automatically so preview shows up
+    const gameQuestions = [];
+    for (let i = 0; i < Math.min(questions.length, distributions.length); i++) {
+      const question = questions[i];
+      const dist = distributions[i];
+
+      gameQuestions.push({
+        questionId: question._id,
+        questionText: question.text,
+        optionA: question.optionA,
+        optionB: question.optionB,
+        percentA: dist.percentA,
+        percentB: 100 - dist.percentA,
+        totalResponses: userIds.length,
+      });
+    }
+
+    // Create game
+    const gameId = await ctx.db.insert("games", {
+      roomId,
+      status: "not_started",
+      currentRound: 0,
+      totalRounds: gameQuestions.length,
+      startedAt: undefined,
+      completedAt: undefined,
+    });
+
+    // Create rounds
+    for (let i = 0; i < gameQuestions.length; i++) {
+      const q = gameQuestions[i];
+      await ctx.db.insert("gameRounds", {
+        gameId,
+        roundNumber: i + 1,
+        questionId: q.questionId,
+        questionText: q.questionText,
+        correctAnswer: q.percentA >= q.percentB ? "A" : "B",
+        actualPercentage: Math.max(q.percentA, q.percentB),
+        revealedAt: undefined,
+      });
+    }
+
     return {
       success: true,
       roomId,
-      roomCode: "!!!",
+      gameId,
+      roomCode: "TEST",
       pin: "1234",
       usersCreated: userIds.length,
       questionsAnswered: Math.min(questions.length, distributions.length),
-      message: "Test room created! Join at /host with code !!! and PIN 1234",
+      totalRounds: gameQuestions.length,
+      message: "Test room created with game ready! Join at /host with code TEST and PIN 1234",
     };
   },
 });
@@ -218,7 +261,7 @@ export const cleanupTestRoom = mutation({
     // Find test room
     const room = await ctx.db
       .query("rooms")
-      .withIndex("by_code", (q) => q.eq("code", "!!!"))
+      .withIndex("by_code", (q) => q.eq("code", "TEST"))
       .first();
 
     if (!room) {

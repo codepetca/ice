@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,6 +10,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { getEmojiName } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
+import { Maximize, Minimize, Play, Pause, Square, Settings, Sun, Moon, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
 
 const ROOM_STORAGE_KEY = "ice-host-room";
 
@@ -56,12 +57,17 @@ export default function HostPage() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [joinPin, setJoinPin] = useState("");
   const [usersExpanded, setUsersExpanded] = useState(true);
-  const [presentationMode, setPresentationMode] = useState<"admin" | "fullscreen">("admin");
-  const [phase2Mode, setPhase2Mode] = useState<"game" | "slideshow">("game");
+  const [lastUserCount, setLastUserCount] = useState(0);
+  const [joinNotifications, setJoinNotifications] = useState<Array<{ id: string; avatar: string; x: number; y: number }>>([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+  const [showNewGameButton, setShowNewGameButton] = useState(false);
 
   const createRoom = useMutation(api.rooms.createRoom);
   const startPhase1 = useMutation(api.rooms.startPhase1);
   const stopPhase1 = useMutation(api.rooms.stopPhase1);
+  const adjustPhase1Duration = useMutation(api.rooms.adjustPhase1Duration);
+  const resetRoom = useMutation(api.rooms.resetRoom);
   const seedQuestions = useMutation(api.questions.seedQuestions);
   const removeUser = useMutation(api.users.removeUser);
 
@@ -70,6 +76,7 @@ export default function HostPage() {
   const startGame = useMutation(api.games.startGame);
   const revealRound = useMutation(api.games.revealRound);
   const advanceRound = useMutation(api.games.advanceRound);
+  const previousRound = useMutation(api.games.previousRound);
   const endGame = useMutation(api.games.endGame);
 
   // Query to validate saved room on mount
@@ -107,6 +114,11 @@ export default function HostPage() {
   const currentRound = useQuery(
     api.games.getCurrentRound,
     game ? { gameId: game._id } : "skip"
+  );
+
+  const firstRound = useQuery(
+    api.games.getRoundByNumber,
+    game ? { gameId: game._id, roundNumber: 1 } : "skip"
   );
 
   const leaderboard = useQuery(
@@ -171,31 +183,80 @@ export default function HostPage() {
     }
   }, [room, currentTime, roomId, pin]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-reveal results after 6 seconds
+  // Manual navigation - auto-advance disabled
+  // Use forward/backward buttons to control slideshow
+
+  // Show "New Game" button on last slide after reveal (with delay)
   useEffect(() => {
-    if (game && game.status === "in_progress" && currentRound && !currentRound.round.revealedAt) {
-      const revealTimer = setTimeout(async () => {
-        try {
-          await revealRound({ gameId: game._id });
-        } catch (err) {
-          console.error("Auto-reveal error:", err);
-        }
-      }, 6000); // 6 seconds
-
-      return () => clearTimeout(revealTimer);
+    if (game && game.currentRound === game.totalRounds && currentRound?.round.revealedAt) {
+      // Wait 3 seconds after reveal, then show button
+      const timer = setTimeout(() => {
+        setShowNewGameButton(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowNewGameButton(false);
     }
-  }, [game, currentRound]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [game?.currentRound, game?.totalRounds, currentRound?.round.revealedAt]);
 
-  // Auto-advance slides 6 seconds after reveal (12 seconds total)
+  // Watch for new users joining and show notification
   useEffect(() => {
-    if (game && game.status === "in_progress" && currentRound?.round.revealedAt) {
-      const advanceTimer = setTimeout(async () => {
-        await handleNextSlide();
-      }, 6000); // 6 seconds after reveal
+    if (roomUsers && roomUsers.length > lastUserCount && lastUserCount >= 0) {
+      // New user joined - find the newest user
+      const newUser = roomUsers[roomUsers.length - 1];
 
-      return () => clearTimeout(advanceTimer);
+      // Generate random position (safe zones: 10-90% width, 20-70% height to avoid bottom controls)
+      const x = 10 + Math.random() * 80; // 10-90%
+      const y = 20 + Math.random() * 50; // 20-70%
+
+      const notificationId = `${Date.now()}-${Math.random()}`;
+
+      // Add notification to array
+      setJoinNotifications(prev => [...prev, {
+        id: notificationId,
+        avatar: newUser.avatar,
+        x,
+        y,
+      }]);
+
+      // Remove notification after 2 seconds
+      setTimeout(() => {
+        setJoinNotifications(prev => prev.filter(n => n.id !== notificationId));
+      }, 2000);
     }
-  }, [game, currentRound?.round.revealedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    if (roomUsers) {
+      setLastUserCount(roomUsers.length);
+    }
+  }, [roomUsers, lastUserCount]);
+
+  // Initialize dark mode
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const shouldBeDark = stored === "dark" || (!stored && prefersDark);
+    setIsDark(shouldBeDark);
+
+    if (shouldBeDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newDarkMode = !isDark;
+    setIsDark(newDarkMode);
+
+    if (newDarkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+    setSettingsOpen(false);
+  };
 
   const handleCreateRoom = async () => {
     try {
@@ -280,7 +341,6 @@ export default function HostPage() {
 
     try {
       await startPhase1({ roomId: roomId as Id<"rooms">, pin });
-      showToast("Phase 1 started!", "success");
     } catch (error: any) {
       showToast(error.message, "error");
     }
@@ -302,7 +362,20 @@ export default function HostPage() {
 
     try {
       await stopPhase1({ roomId: roomId as Id<"rooms">, pin });
-      showToast("Winding down - session will stop in 15 seconds", "info");
+    } catch (error: any) {
+      showToast(error.message, "error");
+    }
+  };
+
+  const handleAdjustTime = async (minutes: number) => {
+    if (!roomId || !pin) return;
+
+    try {
+      await adjustPhase1Duration({
+        roomId: roomId as Id<"rooms">,
+        pin,
+        adjustmentSeconds: minutes * 60
+      });
     } catch (error: any) {
       showToast(error.message, "error");
     }
@@ -325,10 +398,38 @@ export default function HostPage() {
     if (!game) return;
 
     try {
-      // Always loop back to first slide after last slide
-      await advanceRound({ gameId: game._id, loop: true });
+      // Ensure current round is revealed before advancing
+      if (currentRound && !currentRound.round.revealedAt) {
+        await revealRound({ gameId: game._id });
+      }
+      // Advance to next slide
+      await advanceRound({ gameId: game._id });
     } catch (error: any) {
       showToast(error.message, "error");
+    }
+  };
+
+  const handleRevealComplete = useCallback(async () => {
+    if (!game || !currentRound || currentRound.round.revealedAt) return;
+
+    try {
+      // Save reveal state to database
+      await revealRound({ gameId: game._id });
+    } catch (error: any) {
+      console.error("Error saving reveal:", error);
+    }
+  }, [game, currentRound, revealRound]);
+
+  const handlePreviousSlide = async () => {
+    if (!game) return;
+
+    try {
+      await previousRound({ gameId: game._id });
+    } catch (error: any) {
+      // Silently ignore "already at first round" errors
+      if (!error.message.includes("Already at first round")) {
+        showToast(error.message, "error");
+      }
     }
   };
 
@@ -337,29 +438,16 @@ export default function HostPage() {
 
     // If game exists and is in progress, stop it
     if (game && game.status === "in_progress") {
-      const confirmed = await showConfirm({
-        title: "Stop Slideshow?",
-        message: "This will stop the presentation. You can restart it anytime.",
-        confirmText: "Stop",
-        cancelText: "Cancel",
-      });
-
-      if (!confirmed) return;
-
       try {
         await endGame({ gameId: game._id });
-        showToast("Slideshow stopped!", "success");
-        setPresentationMode("admin"); // Exit fullscreen if in fullscreen
       } catch (error: any) {
         showToast(error.message, "error");
       }
     } else {
       // Start or restart the slideshow
       try {
-        showToast("Starting slideshow...", "info");
         const result = await generateGame({ roomId: roomId as Id<"rooms"> });
         await startGame({ gameId: result.gameId });
-        showToast(`Slideshow started with ${result.totalRounds} slides!`, "success");
       } catch (error: any) {
         showToast(error.message, "error");
       }
@@ -626,7 +714,7 @@ export default function HostPage() {
     );
   }
 
-  // Manage view
+  // Manage view - Always fullscreen
   if (view === "manage" && room) {
     // Calculate winding down progress
     const windingDownElapsed = room.windingDownStartedAt
@@ -644,318 +732,523 @@ export default function HostPage() {
     const minutes = Math.floor(timeRemaining / 60);
     const seconds = timeRemaining % 60;
 
-    if (presentationMode === "fullscreen" && game && game.status === "in_progress" && currentRound) {
-      // Render fullscreen presentation
+    // State 1: Ready to Start Game (Phase 1 not started yet)
+    if (!room.phase1StartedAt) {
       return (
-        <div className="fixed inset-0 z-50 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white overflow-auto">
-          {/* Exit button */}
-          <button
-            onClick={() => setPresentationMode("admin")}
-            className="fixed top-4 right-4 z-50 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur rounded-lg transition-all duration-300 text-sm font-semibold"
-          >
-            Exit Fullscreen
-          </button>
+        <div className="fixed inset-0 z-50 bg-background overflow-hidden">
+          {/* Settings in top-right */}
+          <div className="fixed top-4 right-4 z-50">
+            <button
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className="p-3 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+              aria-label="Settings"
+            >
+              <Settings className="w-6 h-6 text-foreground" />
+            </button>
 
-          <div className="min-h-screen p-12 flex flex-col">
-            {/* Question */}
-            <div className="flex-1 flex items-center justify-center">
-              <div className="w-full max-w-6xl space-y-12">
-                <AnimatePresence mode="wait">
+            {/* Settings Dropdown */}
+            <AnimatePresence>
+              {settingsOpen && (
+                <>
+                  <div onClick={() => setSettingsOpen(false)} className="fixed inset-0 z-40" />
                   <motion.div
-                    key={currentRound.round.roundNumber}
-                    initial={{ opacity: 0, x: 100 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -100 }}
-                    transition={{
-                      duration: 0.6,
-                      ease: [0.4, 0.0, 0.2, 1]
-                    }}
-                    className="text-center"
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    className="absolute top-14 right-0 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden min-w-[180px]"
                   >
-                    {currentRound.questionData && (
-                      <SlideshowQuestion
-                        questionText={currentRound.questionData.text || currentRound.round.questionText}
-                        optionA={currentRound.questionData.optionA}
-                        optionB={currentRound.questionData.optionB}
-                        percentA={currentRound.questionData.percentA}
-                        percentB={currentRound.questionData.percentB}
-                        totalResponses={currentRound.questionData.totalResponses}
-                        isRevealed={!!currentRound.round.revealedAt}
-                        roundNumber={currentRound.round.roundNumber}
-                        variant="projector"
-                      />
-                    )}
+                    <button
+                      onClick={toggleDarkMode}
+                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted transition-colors text-left"
+                    >
+                      <div className="w-5 h-5 flex items-center justify-center text-foreground">
+                        {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                      </div>
+                      <span className="text-sm font-medium text-foreground">
+                        {isDark ? "Light Mode" : "Dark Mode"}
+                      </span>
+                    </button>
                   </motion.div>
-                </AnimatePresence>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <main className="flex min-h-screen flex-col items-center justify-center p-12">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center space-y-16"
+            >
+              {/* URL and Room Code */}
+              <div className="text-center">
+                <div className="text-3xl text-muted-foreground font-medium mb-3">
+                  https://joinroom.link
+                </div>
+                <div className="text-6xl font-display font-bold text-foreground uppercase tracking-[0.25em] -mr-[0.25em]">
+                  {roomCode}
+                </div>
               </div>
-            </div>
+
+              {/* Timer with controls */}
+              <div className="flex items-center justify-center gap-6 mb-8">
+                {/* Invisible spacer for visual balance */}
+                <div className="w-12 flex flex-col gap-2 invisible" aria-hidden="true">
+                  <div className="h-12"></div>
+                  <div className="h-12"></div>
+                </div>
+
+                <div className="text-9xl font-bold tabular-nums text-foreground">
+                  {Math.floor(room.phase1Duration / 60).toString().padStart(2, "0")}:{(room.phase1Duration % 60).toString().padStart(2, "0")}
+                </div>
+
+                {/* Time adjustment - to the right of clock */}
+                <div className="flex flex-col gap-2">
+                  {/* Increase time button */}
+                  <button
+                    onClick={() => handleAdjustTime(1)}
+                    disabled={room.phase1Duration >= 1200}
+                    className="w-12 h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    aria-label="Increase time by 1 minute"
+                  >
+                    <ChevronUp className="w-5 h-5" />
+                  </button>
+
+                  {/* Decrease time button */}
+                  <button
+                    onClick={() => handleAdjustTime(-1)}
+                    disabled={room.phase1Duration <= 60}
+                    className="w-12 h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    aria-label="Decrease time by 1 minute"
+                  >
+                    <ChevronDown className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Participant count - centered below clock */}
+              <div className="flex justify-center mb-6">
+                <div className="flex items-center gap-2 text-2xl font-semibold text-foreground">
+                  <Users className="w-6 h-6" />
+                  <span>{roomUsers?.length || 0}</span>
+                </div>
+              </div>
+
+            </motion.div>
+          </main>
+
+          {/* Game Controls - Bottom */}
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+            <button
+              onClick={handleStartPhase1}
+              className="w-20 h-20 flex items-center justify-center bg-gradient-to-br from-primary-600 to-accent-600 dark:from-primary-500 dark:to-accent-500 text-white rounded-full hover:from-primary-700 hover:to-accent-700 dark:hover:from-primary-600 dark:hover:to-accent-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-110 active:scale-95"
+              aria-label="Start game"
+            >
+              <Play className="w-10 h-10 ml-1" />
+            </button>
+          </div>
+
+          {/* Join notifications - random positions */}
+          <div className="fixed inset-0 z-50 pointer-events-none">
+            <AnimatePresence>
+              {joinNotifications.map((notification) => (
+                <motion.div
+                  key={notification.id}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.5 }}
+                  transition={{ duration: 0.5 }}
+                  style={{
+                    position: 'absolute',
+                    left: `${notification.x}%`,
+                    top: `${notification.y}%`,
+                  }}
+                  className="w-24 h-24 rounded-full bg-card/80 border border-border shadow-lg flex items-center justify-center text-5xl pointer-events-none"
+                >
+                  {notification.avatar}
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </div>
       );
     }
 
-    return (
-      <main className="min-h-screen p-8 bg-background">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-2xl mx-auto space-y-8"
-        >
-          <div className="text-center space-y-4">
-            {/* Room Code Display */}
-            <div className="flex justify-center gap-3">
-              {roomCode.split('').map((letter, index) => (
-                <div
-                  key={index}
-                  className="w-20 h-24 flex items-center justify-center text-5xl font-display font-bold border-2 border-border rounded-lg bg-primary text-primary-foreground shadow-sm uppercase"
-                >
-                  {letter}
-                </div>
-              ))}
-            </div>
+    // State 2: Phase 1 Active
+    if (room.phase1Active) {
+      return (
+        <div className="fixed inset-0 z-50 bg-background overflow-hidden">
+          {/* Settings in top-right */}
+          <div className="fixed top-4 right-4 z-50">
+            <button
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className="p-3 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+              aria-label="Settings"
+            >
+              <Settings className="w-6 h-6 text-foreground" />
+            </button>
+
+            {/* Settings Dropdown */}
+            <AnimatePresence>
+              {settingsOpen && (
+                <>
+                  <div onClick={() => setSettingsOpen(false)} className="fixed inset-0 z-40" />
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    className="absolute top-14 right-0 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden min-w-[180px]"
+                  >
+                    <button
+                      onClick={toggleDarkMode}
+                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted transition-colors text-left"
+                    >
+                      <div className="w-5 h-5 flex items-center justify-center text-foreground">
+                        {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                      </div>
+                      <span className="text-sm font-medium text-foreground">
+                        {isDark ? "Light Mode" : "Dark Mode"}
+                      </span>
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* Game & Slideshow Tabs */}
-          <div className="rounded-lg shadow-sm border border-border overflow-hidden bg-muted/30">
-            {/* Tabs */}
-            <div className="flex gap-1">
-              <button
-                onClick={() => setPhase2Mode("game")}
-                className={`flex-1 px-6 py-3 text-base font-display font-semibold transition-all ${
-                  phase2Mode === "game"
-                    ? "bg-primary/20 text-primary rounded-tl-lg"
-                    : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-tl-lg"
-                }`}
-              >
-                Game
-              </button>
-              <button
-                onClick={() => setPhase2Mode("slideshow")}
-                className={`flex-1 px-6 py-3 text-base font-display font-semibold transition-all ${
-                  phase2Mode === "slideshow"
-                    ? "bg-primary/20 text-primary rounded-tr-lg"
-                    : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-tr-lg"
-                }`}
-              >
-                Slideshow
-              </button>
-            </div>
-
-            {/* Tab Content */}
-            <div className="p-8 pt-6 space-y-6 bg-primary/20 rounded-b-lg min-h-[200px]">
-              {phase2Mode === "game" ? (
-                /* Game Mode Content - Phase 1 Timer & Controls */
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <div className={`text-4xl font-bold ${room.windingDownStartedAt ? 'text-orange-500' : 'text-foreground'}`}>
-                      {minutes}:{seconds.toString().padStart(2, "0")}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4">
-                    {!room.phase1Active ? (
-                      <button
-                        onClick={handleStartPhase1}
-                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-success text-white rounded-xl hover:opacity-90 transition"
-                      >
-                        Start Game
-                      </button>
-                    ) : room.windingDownStartedAt ? (
-                      <button
-                        disabled
-                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-gray-400 rounded-xl cursor-not-allowed"
-                      >
-                        Stopping...
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleStopPhase1()}
-                        className="flex-1 px-8 py-4 text-xl font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition"
-                      >
-                        Stop Game
-                      </button>
-                    )}
-                  </div>
+          <main className="flex min-h-screen flex-col items-center justify-center p-12">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center space-y-16"
+            >
+              {/* URL and Room Code */}
+              <div className="text-center">
+                <div className="text-3xl text-muted-foreground font-medium mb-3">
+                  https://joinroom.link
                 </div>
-              ) : (
-                  /* Slideshow Mode Content */
-                  <>
-                    {!game || game.status !== "in_progress" ? (
-                      <div className="space-y-4">
-                        <button
-                          onClick={handleToggleSlideshow}
-                          className="w-full px-8 py-4 text-xl font-semibold text-white bg-success rounded-xl hover:opacity-90 transition"
-                        >
-                          Start Slideshow
-                        </button>
-                      </div>
-                    ) : game.status === "in_progress" && currentRound ? (
-                      <div className="space-y-6">
-                        {/* Control Row */}
-                        <div className="flex items-center justify-between flex-wrap gap-4">
-                          <div className="text-sm font-medium text-gray-600">
-                            Slide {gameState?.game?.currentRound} of {gameState?.game?.totalRounds}
-                            {!currentRound.round.revealedAt && <span className="text-purple-600"> • Revealing in 6s...</span>}
-                            {currentRound.round.revealedAt && <span className="text-purple-600"> • Next slide in 6s...</span>}
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            {/* Fullscreen Toggle */}
-                            <button
-                              onClick={() => setPresentationMode(presentationMode === "admin" ? "fullscreen" : "admin")}
-                              className="px-4 py-2 text-sm font-semibold bg-gradient-to-r from-primary-500 to-accent-500 text-white rounded-lg hover:from-primary-600 hover:to-accent-600 transition"
-                            >
-                              📺 Fullscreen
-                            </button>
-
-                            <button
-                              onClick={handleToggleSlideshow}
-                              className="px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                            >
-                              Stop
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Admin Preview (only show when not in fullscreen) */}
-                        {presentationMode === "admin" && currentRound.questionData && (
-                          <div className="bg-purple-50 rounded-xl p-6">
-                            <SlideshowQuestion
-                              questionText={currentRound.questionData.text || currentRound.round.questionText}
-                              optionA={currentRound.questionData.optionA}
-                              optionB={currentRound.questionData.optionB}
-                              percentA={currentRound.questionData.percentA}
-                              percentB={currentRound.questionData.percentB}
-                              totalResponses={currentRound.questionData.totalResponses}
-                              isRevealed={!!currentRound.round.revealedAt}
-                              roundNumber={currentRound.round.roundNumber}
-                              variant="admin"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </>
-                )}
+                <div className="text-6xl font-display font-bold text-foreground uppercase tracking-[0.25em] -mr-[0.25em]">
+                  {roomCode}
+                </div>
               </div>
-            </div>
 
-          {/* Room Users List */}
-          {roomUsers && roomUsers.length > 0 && (
-            <div className="bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
-              {/* Collapsible Header */}
-              <button
-                onClick={() => setUsersExpanded(!usersExpanded)}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-muted/50 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-semibold text-foreground">Participants</span>
-                  <span className="px-3 py-1 bg-primary/20 text-primary rounded-full text-sm font-semibold">
-                    {roomUsers.length}
-                  </span>
+              {/* Timer with controls */}
+              <div className="flex items-center justify-center gap-8 mb-8">
+                {/* Invisible spacer for visual balance */}
+                <div className="w-12 flex flex-col gap-2 invisible" aria-hidden="true">
+                  <div className="h-12"></div>
+                  <div className="h-12"></div>
                 </div>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className={`h-5 w-5 text-muted-foreground transition-transform ${usersExpanded ? "rotate-180" : ""}`}
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
+
+                <div className={`text-9xl font-bold tabular-nums ${room.windingDownStartedAt ? 'text-orange-500' : 'text-foreground'}`}>
+                  {minutes.toString().padStart(2, "0")}:{seconds.toString().padStart(2, "0")}
+                </div>
+
+                {/* Time adjustment - to the right of clock */}
+                <div className="flex flex-col gap-2">
+                  {/* Increase time button */}
+                  <button
+                    onClick={() => handleAdjustTime(1)}
+                    disabled={room.phase1Duration >= 1200 || !!room.windingDownStartedAt}
+                    className="w-12 h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    aria-label="Increase time by 1 minute"
+                  >
+                    <ChevronUp className="w-5 h-5" />
+                  </button>
+
+                  {/* Decrease time button */}
+                  <button
+                    onClick={() => handleAdjustTime(-1)}
+                    disabled={timeRemaining < 60 || !!room.windingDownStartedAt}
+                    className="w-12 h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    aria-label="Decrease time by 1 minute"
+                  >
+                    <ChevronDown className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Participant count - centered below clock */}
+              <div className="flex justify-center mb-6">
+                <div className="flex items-center gap-2 text-2xl font-semibold text-foreground">
+                  <Users className="w-6 h-6" />
+                  <span>{roomUsers?.length || 0}</span>
+                </div>
+              </div>
+
+            </motion.div>
+          </main>
+
+          {/* Join notifications - random positions */}
+          <div className="fixed inset-0 z-50 pointer-events-none">
+            <AnimatePresence>
+              {joinNotifications.map((notification) => (
+                <motion.div
+                  key={notification.id}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.5 }}
+                  transition={{ duration: 0.5 }}
+                  style={{
+                    position: 'absolute',
+                    left: `${notification.x}%`,
+                    top: `${notification.y}%`,
+                  }}
+                  className="w-24 h-24 rounded-full bg-card/80 border border-border shadow-lg flex items-center justify-center text-5xl pointer-events-none"
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
+                  {notification.avatar}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+      );
+    }
 
-              {/* Expandable Content */}
-              {usersExpanded && (
-                <div className="px-6 pb-6">
-                  {/* Search/Filter Box */}
-                  <div className="mb-4 relative">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+    // State 3 & 4: Slideshow (Ready or Playing)
+    // Determine which slideshow state we're in
+    const slideshowReady = room.phase1StartedAt && !room.phase1Active && (!game || game.status !== "in_progress");
+    const slideshowPlaying = game && game.status === "in_progress";
+    const isLastSlide = game && game.currentRound === game.totalRounds;
+    const isLastSlideRevealed = isLastSlide && currentRound?.round.revealedAt;
+
+    if (slideshowReady || slideshowPlaying) {
+      const displayRound = game && game.status === "in_progress" && currentRound
+        ? currentRound
+        : firstRound;
+
+      return (
+        <div className="fixed inset-0 z-50 bg-background overflow-hidden">
+          {/* Settings in top-right */}
+          <div className="fixed top-4 right-4 z-50">
+            <button
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className="p-3 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+              aria-label="Settings"
+            >
+              <Settings className="w-6 h-6 text-foreground" />
+            </button>
+
+            <AnimatePresence>
+              {settingsOpen && (
+                <>
+                  <div onClick={() => setSettingsOpen(false)} className="fixed inset-0 z-40" />
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    className="absolute top-14 right-0 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden min-w-[180px]"
+                  >
+                    <button
+                      onClick={toggleDarkMode}
+                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted transition-colors text-left"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                    <input
-                      type="text"
-                      value={userSearch}
-                      onChange={(e) => setUserSearch(e.target.value)}
-                      className="w-full pl-10 pr-10 py-3 text-lg border-2 border-border bg-background text-foreground rounded-xl focus:border-primary focus:outline-none"
-                    />
-                    {userSearch && (
-                      <button
-                        onClick={() => setUserSearch("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {[...roomUsers]
-                      .sort((a, b) => {
-                        const nameA = getEmojiName(a.avatar);
-                        const nameB = getEmojiName(b.avatar);
-                        return nameA.localeCompare(nameB);
-                      })
-                      .filter((user) => {
-                        const userName = getEmojiName(user.avatar).toLowerCase();
-
-                        // Filter by search text
-                        if (userSearch && !userName.includes(userSearch.toLowerCase())) {
-                          return false;
-                        }
-
-                        return true;
-                      })
-                      .map((user) => (
-                        <div
-                          key={user.id}
-                          className="relative bg-muted rounded-xl p-3 text-center group hover:bg-muted/70 transition"
-                        >
-                          <div className="text-4xl mb-1">{user.avatar}</div>
-                          <div className="text-xs text-muted-foreground capitalize">
-                            {getEmojiName(user.avatar)}
-                          </div>
-                          <button
-                            onClick={() => handleRemoveUser(user.id)}
-                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold"
-                            title="Remove user"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                </div>
+                      <div className="w-5 h-5 flex items-center justify-center text-foreground">
+                        {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                      </div>
+                      <span className="text-sm font-medium text-foreground">
+                        {isDark ? "Light Mode" : "Dark Mode"}
+                      </span>
+                    </button>
+                  </motion.div>
+                </>
               )}
+            </AnimatePresence>
+          </div>
+
+          {/* Room Code - Top Center */}
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 text-center">
+            <div className="text-3xl font-display font-bold text-foreground uppercase tracking-[0.5em]">
+              {roomCode}
             </div>
-          )}
-          </motion.div>
-        </main>
+            {game && displayRound && game.status === "in_progress" && (
+              <div className="text-xl text-muted-foreground mt-2">
+                {displayRound.round.roundNumber} / {game.totalRounds}
+              </div>
+            )}
+          </div>
+
+          {/* Slideshow Content */}
+          <main className="flex min-h-screen flex-col items-center justify-center p-12 overflow-hidden relative">
+            {game?.status === "in_progress" && displayRound?.questionData ? (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={displayRound.round.roundNumber}
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -50 }}
+                  transition={{
+                    duration: 0.5,
+                    ease: [0.4, 0.0, 0.2, 1]
+                  }}
+                  className={`w-full max-w-6xl transition-opacity duration-500 ${showNewGameButton ? 'opacity-50' : 'opacity-100'}`}
+                >
+                  <SlideshowQuestion
+                    questionText={displayRound.questionData.text || displayRound.round.questionText}
+                    optionA={displayRound.questionData.optionA}
+                    optionB={displayRound.questionData.optionB}
+                    percentA={displayRound.questionData.percentA}
+                    percentB={displayRound.questionData.percentB}
+                    totalResponses={displayRound.questionData.totalResponses}
+                    isRevealed={!!displayRound.round.revealedAt}
+                    roundNumber={displayRound.round.roundNumber}
+                    variant="projector"
+                    onRevealComplete={handleRevealComplete}
+                  />
+                </motion.div>
+              </AnimatePresence>
+            ) : slideshowReady && firstRound?.questionData ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-6xl"
+              >
+                <div className="opacity-50">
+                  <SlideshowQuestion
+                    questionText={firstRound.questionData.text || firstRound.round.questionText}
+                    optionA={firstRound.questionData.optionA}
+                    optionB={firstRound.questionData.optionB}
+                    percentA={firstRound.questionData.percentA}
+                    percentB={firstRound.questionData.percentB}
+                    totalResponses={firstRound.questionData.totalResponses}
+                    isRevealed={false}
+                    roundNumber={1}
+                    variant="projector"
+                    isPreview={true}
+                  />
+                </div>
+              </motion.div>
+            ) : slideshowReady && !firstRound?.questionData ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center space-y-8"
+              >
+                <div className="text-5xl font-bold text-foreground">No responses collected</div>
+              </motion.div>
+            ) : null}
+
+            {/* Centered "New Game" Button Overlay (Last Slide After Reveal) */}
+            <AnimatePresence>
+              {showNewGameButton && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.5 }}
+                  className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
+                >
+                  <button
+                    onClick={async () => {
+                      const confirmed = await showConfirm({
+                        title: "Start New Game?",
+                        message: "This will reset all game data and start fresh.",
+                      });
+                      if (confirmed && roomId && pin && room) {
+                        try {
+                          // Reset duration to 10 minutes (600 seconds)
+                          const targetDuration = 600;
+                          const adjustment = targetDuration - room.phase1Duration;
+                          if (adjustment !== 0) {
+                            await adjustPhase1Duration({
+                              roomId: roomId as Id<"rooms">,
+                              pin: pin,
+                              adjustmentSeconds: adjustment,
+                            });
+                          }
+
+                          await resetRoom({
+                            roomId: roomId as Id<"rooms">,
+                            pin: pin,
+                          });
+                          showToast("Ready to start a new session");
+                        } catch (error: any) {
+                          showToast(error.message, "error");
+                        }
+                      }
+                    }}
+                    className="px-16 py-8 bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white text-4xl font-bold rounded-2xl hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-105 active:scale-95 pointer-events-auto"
+                  >
+                    New Game
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </main>
+
+          {/* Control Buttons - Bottom Center */}
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex gap-4">
+            {slideshowReady && firstRound?.questionData && (
+              <button
+                onClick={handleToggleSlideshow}
+                className="w-20 h-20 flex items-center justify-center bg-gradient-to-br from-primary-600 to-accent-600 dark:from-primary-500 dark:to-accent-500 text-white rounded-full hover:from-primary-700 hover:to-accent-700 dark:hover:from-primary-600 dark:hover:to-accent-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-110 active:scale-95"
+                aria-label="Start slideshow"
+              >
+                <Play className="w-10 h-10 ml-1" />
+              </button>
+            )}
+            {slideshowReady && !firstRound?.questionData && (
+              <button
+                onClick={async () => {
+                  if (!roomId || !pin || !room) return;
+                  try {
+                    // Reset duration to 10 minutes (600 seconds)
+                    const targetDuration = 600;
+                    const adjustment = targetDuration - room.phase1Duration;
+                    if (adjustment !== 0) {
+                      await adjustPhase1Duration({
+                        roomId: roomId as Id<"rooms">,
+                        pin: pin,
+                        adjustmentSeconds: adjustment,
+                      });
+                    }
+
+                    await resetRoom({
+                      roomId: roomId as Id<"rooms">,
+                      pin: pin,
+                    });
+                    showToast("Ready to start a new session");
+                  } catch (error: any) {
+                    showToast(error.message, "error");
+                  }
+                }}
+                className="px-16 py-8 bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white text-3xl font-bold rounded-2xl hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-105 active:scale-95"
+              >
+                New Game
+              </button>
+            )}
+            {game && game.status === "in_progress" && (
+              <>
+                <button
+                  onClick={handlePreviousSlide}
+                  disabled={game.currentRound <= 1}
+                  className="w-20 h-20 flex items-center justify-center bg-muted/50 hover:bg-muted/70 text-foreground rounded-full transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  aria-label="Previous slide"
+                >
+                  <ChevronLeft className="w-10 h-10" />
+                </button>
+                {/* Hide forward button on last slide */}
+                {game.currentRound < game.totalRounds && (
+                  <button
+                    onClick={handleNextSlide}
+                    className="w-20 h-20 flex items-center justify-center bg-muted/50 hover:bg-muted/70 text-foreground rounded-full transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                    aria-label="Next slide"
+                  >
+                    <ChevronRight className="w-10 h-10" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Fallback (shouldn't reach here)
+    return (
+      <div className="fixed inset-0 bg-background flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
     );
   }
 

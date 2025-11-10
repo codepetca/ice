@@ -1077,17 +1077,11 @@ function UserPageContent() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-center space-y-6"
+          className="text-center"
         >
-          <div className="text-8xl">🔒</div>
           <h2 className="text-4xl font-bold text-gray-900">
-            Session Ended
+            Results Starting...
           </h2>
-          <p className="text-xl text-gray-600">
-            {game && game.status === "in_progress"
-              ? "Phase 2 starting soon..."
-              : "Thanks for participating!"}
-          </p>
         </motion.div>
       </main>
     );
@@ -1095,13 +1089,13 @@ function UserPageContent() {
 
   // Phase 2: Slideshow viewing (replaces voting, waiting, and reveal)
   if (state.matches("phase2_voting") || state.matches("phase2_waiting") || state.matches("phase2_reveal")) {
-    const questionText = state.context.gameQuestion || currentRound?.questionData?.text || currentRound?.round.questionText;
+    const questionText = state.context.gameQuestion || currentRound?.questionData?.text || currentRound?.round.questionText || "";
     const roundNumber = state.context.currentRoundNumber || currentRound?.round.roundNumber;
     const totalRounds = gameState?.game?.totalRounds || 0;
-    const isRevealed = currentRound?.round.revealedAt;
+    const isRevealed = !!currentRound?.round.revealedAt;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background">
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={roundNumber}

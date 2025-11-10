@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 
 interface SlideshowQuestionProps {
   questionText: string;
@@ -12,6 +13,8 @@ interface SlideshowQuestionProps {
   isRevealed: boolean;
   roundNumber: number;
   variant?: "projector" | "user" | "admin";
+  isPreview?: boolean; // True when showing a stopped/preview state
+  onRevealComplete?: () => void; // Called after animation completes and percentages are shown
 }
 
 export function SlideshowQuestion({
@@ -24,7 +27,27 @@ export function SlideshowQuestion({
   isRevealed,
   roundNumber,
   variant = "projector",
+  isPreview = false,
+  onRevealComplete,
 }: SlideshowQuestionProps) {
+  // Local state to show percentages after animation completes
+  const [showPercentages, setShowPercentages] = useState(isRevealed);
+
+  // Auto-show percentages after 6 second animation if not already revealed
+  useEffect(() => {
+    if (isRevealed) {
+      setShowPercentages(true);
+    } else if (!isPreview) {
+      const timer = setTimeout(() => {
+        setShowPercentages(true);
+        // Notify parent that reveal is complete (save to database)
+        if (onRevealComplete) {
+          onRevealComplete();
+        }
+      }, 6000); // Match the animation duration
+      return () => clearTimeout(timer);
+    }
+  }, [isRevealed, isPreview, roundNumber, onRevealComplete]);
   // Calculate the race target: 90% of the minimum percentage
   const minPercent = Math.min(percentA, percentB);
   const raceTarget = minPercent * 0.9 / 100; // Convert to 0-1 scale for scaleX
@@ -42,7 +65,7 @@ export function SlideshowQuestion({
       winnerBorderClass: "border-success",
       normalBorderClass: "border-border",
       winnerFillClass: "bg-success/20",
-      normalFillClass: "bg-muted/30",
+      normalFillClass: "bg-muted/70",
       textColor: "text-card-foreground",
     },
     user: {
@@ -56,7 +79,7 @@ export function SlideshowQuestion({
       winnerBorderClass: "border-success",
       normalBorderClass: "border-border",
       winnerFillClass: "bg-success/20",
-      normalFillClass: "bg-muted/50",
+      normalFillClass: "bg-muted/70",
       textColor: "text-foreground",
     },
     admin: {
@@ -70,7 +93,7 @@ export function SlideshowQuestion({
       winnerBorderClass: "border-success",
       normalBorderClass: "border-border",
       winnerFillClass: "bg-success/20",
-      normalFillClass: "bg-muted/50",
+      normalFillClass: "bg-muted/70",
       textColor: "text-foreground",
     },
   };
@@ -105,12 +128,12 @@ export function SlideshowQuestion({
           {/* Background fill animation */}
           <motion.div
             key={`fill-a-${roundNumber}`}
-            initial={{ scaleX: isRevealed ? percentA / 100 : 0 }}
-            animate={{ scaleX: isRevealed ? percentA / 100 : [0, raceTarget, percentA / 100] }}
+            initial={{ scaleX: isPreview ? 0 : (isRevealed ? percentA / 100 : 0) }}
+            animate={{ scaleX: isPreview ? 0 : (isRevealed ? percentA / 100 : [0, raceTarget, percentA / 100]) }}
             transition={{
-              duration: isRevealed ? 0 : 6,
-              times: isRevealed ? undefined : [0, 0.92, 1],
-              ease: isRevealed ? undefined : [0.1, 0, 0.9, 1],
+              duration: isRevealed || isPreview ? 0 : 6,
+              times: isRevealed || isPreview ? undefined : [0, 0.92, 1],
+              ease: isRevealed || isPreview ? undefined : [0.1, 0, 0.9, 1],
             }}
             className={`absolute inset-0 origin-left transition-colors duration-700 ${
               isRevealed && percentA >= percentB
@@ -126,7 +149,7 @@ export function SlideshowQuestion({
               {optionA}
             </div>
             <div className={s.percentContainerClass}>
-              {isRevealed ? (
+              {showPercentages ? (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.5 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -158,12 +181,12 @@ export function SlideshowQuestion({
           {/* Background fill animation */}
           <motion.div
             key={`fill-b-${roundNumber}`}
-            initial={{ scaleX: isRevealed ? percentB / 100 : 0 }}
-            animate={{ scaleX: isRevealed ? percentB / 100 : [0, raceTarget, percentB / 100] }}
+            initial={{ scaleX: isPreview ? 0 : (isRevealed ? percentB / 100 : 0) }}
+            animate={{ scaleX: isPreview ? 0 : (isRevealed ? percentB / 100 : [0, raceTarget, percentB / 100]) }}
             transition={{
-              duration: isRevealed ? 0 : 6,
-              times: isRevealed ? undefined : [0, 0.92, 1],
-              ease: isRevealed ? undefined : [0.1, 0, 0.9, 1],
+              duration: isRevealed || isPreview ? 0 : 6,
+              times: isRevealed || isPreview ? undefined : [0, 0.92, 1],
+              ease: isRevealed || isPreview ? undefined : [0.1, 0, 0.9, 1],
             }}
             className={`absolute inset-0 origin-left transition-colors duration-700 ${
               isRevealed && percentB >= percentA
@@ -179,7 +202,7 @@ export function SlideshowQuestion({
               {optionB}
             </div>
             <div className={s.percentContainerClass}>
-              {isRevealed ? (
+              {showPercentages ? (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.5 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -201,11 +224,11 @@ export function SlideshowQuestion({
       {/* Response count - Always rendered to prevent layout shift */}
       <motion.div
         initial={{ opacity: 0 }}
-        animate={{ opacity: isRevealed ? 1 : 0 }}
-        transition={{ duration: variant === "admin" ? 0.3 : 0.5, delay: isRevealed ? (variant === "admin" ? 0.5 : 0.8) : 0 }}
+        animate={{ opacity: showPercentages ? 1 : 0 }}
+        transition={{ duration: variant === "admin" ? 0.3 : 0.5, delay: showPercentages ? (variant === "admin" ? 0.5 : 0.8) : 0 }}
         className={s.responseClass}
       >
-        {isRevealed && (
+        {showPercentages && (
           <>Based on {totalResponses} responses</>
         )}
       </motion.div>

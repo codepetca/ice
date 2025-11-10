@@ -4,7 +4,6 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
 import { ToastProvider } from "@/components/Toast";
 import { ConfirmDialogProvider } from "@/components/ConfirmDialog";
-import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 if (!convexUrl) {
@@ -22,7 +21,6 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
       <ToastProvider>
         <ConfirmDialogProvider>
           {children}
-          <DarkModeToggle />
         </ConfirmDialogProvider>
       </ToastProvider>
     </ConvexProvider>

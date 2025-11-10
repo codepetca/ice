@@ -38,7 +38,7 @@ export function DarkModeToggle() {
     <motion.button
       whileTap={{ scale: 0.95 }}
       onClick={toggleDarkMode}
-      className="fixed bottom-6 right-6 p-3 rounded-full bg-card border-2 border-border shadow-lg hover:shadow-xl transition-all z-50"
+      className="fixed bottom-6 left-6 p-3 rounded-full bg-card border-2 border-border shadow-lg hover:shadow-xl transition-all z-50"
       aria-label="Toggle dark mode"
     >
       <div className="w-6 h-6 flex items-center justify-center">
