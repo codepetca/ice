@@ -122,9 +122,6 @@ export default function Home() {
           className="w-full space-y-10 sm:space-y-12"
         >
           <div className="text-center space-y-1">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Welcome to
-            </p>
             <h1 className="text-4xl sm:text-6xl font-display font-bold text-foreground tracking-tight">
               Ice
             </h1>
