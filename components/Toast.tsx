@@ -89,7 +89,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
 
       {/* Toast Container */}
-      <div className="fixed top-4 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
+      <div
+        className="fixed inset-x-0 top-0 z-50 flex justify-center pointer-events-none px-4"
+        style={{ paddingTop: "max(env(safe-area-inset-top), 1rem)" }}
+      >
         <AnimatePresence>
           {toast && (
             <motion.div

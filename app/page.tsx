@@ -7,6 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useToast } from "@/components/Toast";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { PageContainer, Screen } from "@/components/layout/Page";
 
 export default function Home() {
   const { showToast } = useToast();
@@ -21,22 +22,17 @@ export default function Home() {
     fullCode.length === 4 ? { code: fullCode } : "skip"
   );
 
-  // Autofocus on first input on mount
   useEffect(() => {
     inputRefs.current[0]?.focus();
   }, []);
 
-  // Auto-focus first empty box when user starts typing
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Check if any input has focus
       const anyInputFocused = inputRefs.current.some(
         (input) => input === document.activeElement
       );
 
-      // If no input is focused and user types a valid letter
       if (!anyInputFocused && /^[A-Z]$/i.test(e.key)) {
-        // Find first empty box
         const firstEmptyIndex = code.findIndex((c) => c === "");
         const targetIndex = firstEmptyIndex === -1 ? 0 : firstEmptyIndex;
         inputRefs.current[targetIndex]?.focus();
@@ -47,15 +43,12 @@ export default function Home() {
     return () => document.removeEventListener("keydown", handleGlobalKeyDown);
   }, [code]);
 
-  // Auto-advance when all 4 letters entered and room exists
   useEffect(() => {
     if (fullCode.length === 4 && room !== undefined && !validating) {
       if (room) {
-        // Room exists, show loading state then navigate
         setValidating(true);
         router.push(`/user?roomCode=${fullCode}`);
       } else {
-        // Room doesn't exist, show error and reset
         setValidating(true);
         showToast("Room not found - please check the code", "error");
         setTimeout(() => {
@@ -69,32 +62,30 @@ export default function Home() {
 
   const handleInputChange = (index: number, value: string) => {
     const upperValue = value.toUpperCase();
-    // Allow any non-whitespace character
     const validChars = upperValue.replace(/\s/g, "");
 
     if (validChars.length > 0) {
       const newCode = [...code];
-      newCode[index] = validChars[0]; // Take only first character
+      newCode[index] = validChars[0];
       setCode(newCode);
 
-      // Auto-focus next input
       if (index < 3) {
         inputRefs.current[index + 1]?.focus();
       }
     }
   };
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Handle backspace
+  const handleKeyDown = (
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
     if (e.key === "Backspace") {
       if (code[index] === "" && index > 0) {
-        // If current box is empty, go back and clear previous
         const newCode = [...code];
         newCode[index - 1] = "";
         setCode(newCode);
         inputRefs.current[index - 1]?.focus();
       } else {
-        // Clear current box
         const newCode = [...code];
         newCode[index] = "";
         setCode(newCode);
@@ -106,7 +97,7 @@ export default function Home() {
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const pastedText = e.clipboardData.getData("text").toUpperCase();
-    const validChars = pastedText.replace(/\s/g, ""); // Remove whitespace
+    const validChars = pastedText.replace(/\s/g, "");
 
     const newCode = [...code];
     for (let i = 0; i < Math.min(4, validChars.length); i++) {
@@ -114,8 +105,7 @@ export default function Home() {
     }
     setCode(newCode);
 
-    // Focus appropriate input
-    const nextEmpty = newCode.findIndex(c => c === "");
+    const nextEmpty = newCode.findIndex((c) => c === "");
     if (nextEmpty !== -1) {
       inputRefs.current[nextEmpty]?.focus();
     } else {
@@ -124,51 +114,61 @@ export default function Home() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md space-y-12"
-      >
-        {/* Logo/Title */}
-        <div className="text-center">
-          <h1 className="text-6xl font-display font-bold text-foreground tracking-tight">
-            Ice
-          </h1>
-        </div>
-
-        {/* Code Input Boxes */}
-        <div className="space-y-4">
-          <p className="text-center text-sm font-sans text-muted-foreground uppercase tracking-wide">Enter room code</p>
-          <div className="flex justify-center gap-3">
-            {[0, 1, 2, 3].map((index) => (
-              <input
-                key={index}
-                ref={(el) => { inputRefs.current[index] = el; }}
-                type="text"
-                value={code[index]}
-                onChange={(e) => handleInputChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={handlePaste}
-                maxLength={1}
-                disabled={validating || (fullCode.length === 4 && room === undefined)}
-                className="w-20 h-24 text-center text-5xl font-display font-bold border-2 border-border rounded-lg bg-primary text-primary-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/20 transition-all uppercase disabled:opacity-50"
-              />
-            ))}
+    <Screen as="main" padding="compact" className="items-center justify-center">
+      <PageContainer size="sm" align="center">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full space-y-10 sm:space-y-12"
+        >
+          <div className="text-center space-y-1">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Welcome to
+            </p>
+            <h1 className="text-4xl sm:text-6xl font-display font-bold text-foreground tracking-tight">
+              Ice
+            </h1>
           </div>
 
-          {/* Loading indicator */}
-          {(validating || (fullCode.length === 4 && room === undefined)) && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex justify-center"
-            >
-              <LoadingSpinner size="sm" />
-            </motion.div>
-          )}
-        </div>
-      </motion.div>
-    </main>
+          <div className="space-y-4">
+            <p className="text-center text-xs sm:text-sm font-sans text-muted-foreground uppercase tracking-[0.3em]">
+              Enter room code
+            </p>
+            <div className="flex justify-center gap-2 sm:gap-4">
+              {[0, 1, 2, 3].map((index) => (
+                <input
+                  key={index}
+                  ref={(el) => {
+                    inputRefs.current[index] = el;
+                  }}
+                  type="text"
+                  value={code[index]}
+                  onChange={(e) => handleInputChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  onPaste={handlePaste}
+                  maxLength={1}
+                  inputMode="text"
+                  autoComplete="one-time-code"
+                  disabled={
+                    validating || (fullCode.length === 4 && room === undefined)
+                  }
+                  className="w-16 h-20 sm:w-20 sm:h-24 text-center text-4xl sm:text-5xl font-display font-bold border-2 border-border rounded-2xl bg-primary text-primary-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/30 transition-all uppercase disabled:opacity-50"
+                />
+              ))}
+            </div>
+
+            {(validating || (fullCode.length === 4 && room === undefined)) && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex justify-center pt-2"
+              >
+                <LoadingSpinner size="sm" />
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+      </PageContainer>
+    </Screen>
   );
 }
