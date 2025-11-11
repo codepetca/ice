@@ -10,7 +10,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { getEmojiName } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
-import { Maximize, Minimize, Play, Pause, Square, Settings, Sun, Moon, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+import { Maximize, Minimize, Play, Pause, Square, Settings, Sun, Moon, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageContainer, Screen } from "@/components/layout/Page";
 
 const ROOM_STORAGE_KEY = "ice-host-room";
@@ -62,13 +62,11 @@ export default function HostPage() {
   const [joinNotifications, setJoinNotifications] = useState<Array<{ id: string; avatar: string; x: number; y: number }>>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
-  const [showNewGameButton, setShowNewGameButton] = useState(false);
 
   const createRoom = useMutation(api.rooms.createRoom);
   const startPhase1 = useMutation(api.rooms.startPhase1);
   const stopPhase1 = useMutation(api.rooms.stopPhase1);
   const adjustPhase1Duration = useMutation(api.rooms.adjustPhase1Duration);
-  const resetRoom = useMutation(api.rooms.resetRoom);
   const seedQuestions = useMutation(api.questions.seedQuestions);
   const removeUser = useMutation(api.users.removeUser);
 
@@ -186,15 +184,6 @@ export default function HostPage() {
 
   // Manual navigation - auto-advance disabled
   // Use forward/backward buttons to control slideshow
-
-  // Show "New Round?" button on last slide after reveal (immediately)
-  useEffect(() => {
-    if (game && game.currentRound === game.totalRounds && currentRound?.round.revealedAt) {
-      setShowNewGameButton(true);
-    } else {
-      setShowNewGameButton(false);
-    }
-  }, [game?.currentRound, game?.totalRounds, currentRound?.round.revealedAt]);
 
   // Watch for new users joining and show notification
   useEffect(() => {
@@ -974,11 +963,6 @@ export default function HostPage() {
                 {displayRound.round.roundNumber} / {game.totalRounds}
               </div>
             )}
-            {room && (
-              <div className="text-sm text-muted-foreground mt-1">
-                Round {room.roundNumber}
-              </div>
-            )}
           </div>
 
           {/* Slideshow Content */}
@@ -1041,50 +1025,6 @@ export default function HostPage() {
 
           </main>
 
-          {/* "New Round?" Button - Bottom Right (Last Slide After Reveal) */}
-          <AnimatePresence>
-            {showNewGameButton && (
-              <motion.button
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3 }}
-                onClick={async () => {
-                  const confirmed = await showConfirm({
-                    title: "Start New Round?",
-                    message: "This will reset all game data and start fresh.",
-                  });
-                  if (confirmed && roomId && pin && room) {
-                    try {
-                      // Reset duration to 10 minutes (600 seconds)
-                      const targetDuration = 600;
-                      const adjustment = targetDuration - room.phase1Duration;
-                      if (adjustment !== 0) {
-                        await adjustPhase1Duration({
-                          roomId: roomId as Id<"rooms">,
-                          pin: pin,
-                          adjustmentSeconds: adjustment,
-                        });
-                      }
-
-                      await resetRoom({
-                        roomId: roomId as Id<"rooms">,
-                        pin: pin,
-                      });
-                      showToast("Ready to start a new session");
-                    } catch (error: any) {
-                      showToast(error.message, "error");
-                    }
-                  }
-                }}
-                className="fixed bottom-8 right-8 z-50 w-20 h-20 flex items-center justify-center bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white rounded-full hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-110 active:scale-95"
-                aria-label="Start new round"
-              >
-                <ArrowRight className="w-10 h-10" />
-              </motion.button>
-            )}
-          </AnimatePresence>
-
           {/* Control Buttons - Bottom Center */}
           <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex gap-4">
             {slideshowReady && firstRound?.questionData && (
@@ -1094,37 +1034,6 @@ export default function HostPage() {
                 aria-label="Start slideshow"
               >
                 <Play className="w-10 h-10 ml-1" />
-              </button>
-            )}
-            {slideshowReady && !firstRound?.questionData && (
-              <button
-                onClick={async () => {
-                  if (!roomId || !pin || !room) return;
-                  try {
-                    // Reset duration to 10 minutes (600 seconds)
-                    const targetDuration = 600;
-                    const adjustment = targetDuration - room.phase1Duration;
-                    if (adjustment !== 0) {
-                      await adjustPhase1Duration({
-                        roomId: roomId as Id<"rooms">,
-                        pin: pin,
-                        adjustmentSeconds: adjustment,
-                      });
-                    }
-
-                    await resetRoom({
-                      roomId: roomId as Id<"rooms">,
-                      pin: pin,
-                    });
-                    showToast("Ready to start a new session");
-                  } catch (error: any) {
-                    showToast(error.message, "error");
-                  }
-                }}
-                className="w-20 h-20 flex items-center justify-center bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white rounded-full hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-110 active:scale-95"
-                aria-label="Start new round"
-              >
-                <ArrowRight className="w-10 h-10" />
               </button>
             )}
             {game && game.status === "in_progress" && (

@@ -256,7 +256,7 @@ function UserPageContent() {
     }
   }, [game, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 2: Monitor room reset (when admin starts new round)
+  // Phase 2: Monitor room reset (when admin resets room)
   useEffect(() => {
     if (
       room &&
@@ -268,7 +268,7 @@ function UserPageContent() {
     ) {
       // Room was reset - transition back to browsing
       send({ type: "ROOM_RESET" });
-      showToast("Starting new round", "info");
+      showToast("Room reset", "info");
     }
   }, [room?.phase1StartedAt, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1100,7 +1100,6 @@ function UserPageContent() {
     const questionText = state.context.gameQuestion || currentRound?.questionData?.text || currentRound?.round.questionText || "";
     const roundNumber = state.context.currentRoundNumber || currentRound?.round.roundNumber;
     const totalRounds = gameState?.game?.totalRounds || 0;
-    const isRevealed = !!currentRound?.round.revealedAt;
 
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background overflow-hidden">
@@ -1124,7 +1123,7 @@ function UserPageContent() {
                 percentA={currentRound.questionData.percentA}
                 percentB={currentRound.questionData.percentB}
                 totalResponses={currentRound.questionData.totalResponses}
-                isRevealed={isRevealed}
+                isRevealed={false}
                 roundNumber={roundNumber || 1}
                 variant="user"
               />

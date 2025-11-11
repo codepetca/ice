@@ -34,6 +34,11 @@ export function SlideshowQuestion({
   // Local state to show percentages after animation completes
   const [showPercentages, setShowPercentages] = useState(isRevealed);
 
+  // Reset state when round number changes
+  useEffect(() => {
+    setShowPercentages(isRevealed);
+  }, [roundNumber, isRevealed]);
+
   // Auto-show percentages after 6 second animation if not already revealed
   useEffect(() => {
     if (isRevealed) {
