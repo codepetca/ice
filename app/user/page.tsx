@@ -14,6 +14,7 @@ import { RequestBanner } from "@/components/RequestBanner";
 import { getRandomAvatars, getEmojiName } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
+import { TitleBar } from "@/components/TitleBar";
 
 function UserPageContent() {
   const searchParams = useSearchParams();
@@ -578,6 +579,7 @@ function UserPageContent() {
 
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+        <TitleBar />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -637,6 +639,7 @@ function UserPageContent() {
 
       return (
         <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+          <TitleBar />
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -664,6 +667,7 @@ function UserPageContent() {
 
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+        <TitleBar />
         {/* Incoming requests banner */}
         {incomingRequests && incomingRequests.length > 0 && (
           <RequestBanner
@@ -828,6 +832,7 @@ function UserPageContent() {
 
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+        <TitleBar />
         {inRequestsDisplay && (
           <RequestBanner
             requests={incomingRequests}
@@ -881,6 +886,7 @@ function UserPageContent() {
 
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-yellow-50 to-white">
+        <TitleBar />
         {/* Show subtle banner for incoming requests during active session */}
         {incomingRequests && incomingRequests.length > 0 && (
           <RequestBanner
@@ -1055,6 +1061,7 @@ function UserPageContent() {
   if (state.matches("wrap_up")) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-green-50 to-white">
+        <TitleBar />
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -1082,6 +1089,7 @@ function UserPageContent() {
   if (state.matches("session_locked")) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-50 to-white">
+        <TitleBar />
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -1103,6 +1111,7 @@ function UserPageContent() {
 
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background overflow-hidden">
+        <TitleBar />
         <AnimatePresence mode="wait">
           <motion.div
             key={roundNumber}
@@ -1139,6 +1148,7 @@ function UserPageContent() {
   if (state.matches("phase2_complete")) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-50 to-white">
+        <TitleBar />
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
