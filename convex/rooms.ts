@@ -149,7 +149,6 @@ export const createRoom = mutation({
       phase1Active: false,
       phase1Duration: args.phase1Duration,
       maxGroupSize: args.maxGroupSize || 4,
-      roundNumber: 1, // Start at round 1
       createdAt: now,
       expiresAt: now + fortyEightHours,
     });
@@ -257,6 +256,15 @@ export const finalizeStop = internalMutation({
       phase1Active: false,
       windingDownStartedAt: undefined,
     });
+
+    // Auto-generate game after Phase 1 ends
+    try {
+      await ctx.scheduler.runAfter(0, internal.games.generateGameInternal, {
+        roomId: args.roomId,
+      });
+    } catch (error) {
+      console.error("Failed to auto-generate game:", error);
+    }
   },
 });
 
@@ -271,9 +279,8 @@ export const resetRoom = mutation({
     if (!room) throw new Error("Room not found");
     if (room.pin !== args.pin) throw new Error("Invalid PIN");
 
-    // Increment round number and reset for new round of data collection
+    // Reset room state for new session
     await ctx.db.patch(args.roomId, {
-      roundNumber: room.roundNumber + 1, // Move to next round
       phase1Duration: 600, // Reset to 10 minutes
       phase1StartedAt: undefined,
       phase1Active: false,

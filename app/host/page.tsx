@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, CSSProperties } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,7 +10,8 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { getEmojiName } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
-import { Maximize, Minimize, Play, Pause, Square, Settings, Sun, Moon, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+import { Maximize, Minimize, Play, Pause, Square, Settings, Sun, Moon, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
+import { PageContainer, Screen } from "@/components/layout/Page";
 
 const ROOM_STORAGE_KEY = "ice-host-room";
 
@@ -61,13 +62,11 @@ export default function HostPage() {
   const [joinNotifications, setJoinNotifications] = useState<Array<{ id: string; avatar: string; x: number; y: number }>>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
-  const [showNewGameButton, setShowNewGameButton] = useState(false);
 
   const createRoom = useMutation(api.rooms.createRoom);
   const startPhase1 = useMutation(api.rooms.startPhase1);
   const stopPhase1 = useMutation(api.rooms.stopPhase1);
   const adjustPhase1Duration = useMutation(api.rooms.adjustPhase1Duration);
-  const resetRoom = useMutation(api.rooms.resetRoom);
   const seedQuestions = useMutation(api.questions.seedQuestions);
   const removeUser = useMutation(api.users.removeUser);
 
@@ -185,15 +184,6 @@ export default function HostPage() {
 
   // Manual navigation - auto-advance disabled
   // Use forward/backward buttons to control slideshow
-
-  // Show "New Round?" button on last slide after reveal (immediately)
-  useEffect(() => {
-    if (game && game.currentRound === game.totalRounds && currentRound?.round.revealedAt) {
-      setShowNewGameButton(true);
-    } else {
-      setShowNewGameButton(false);
-    }
-  }, [game?.currentRound, game?.totalRounds, currentRound?.round.revealedAt]);
 
   // Watch for new users joining and show notification
   useEffect(() => {
@@ -452,261 +442,172 @@ export default function HostPage() {
 
   // Create view
   if (view === "create") {
+    const selectStyle: CSSProperties = {
+      backgroundImage:
+        "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+      backgroundPosition: "right 1rem center",
+      backgroundRepeat: "no-repeat",
+      backgroundSize: "1.25em 1.25em",
+    };
+
+    const renderAdvancedOptions = () => (
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        className="space-y-5"
+      >
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-muted-foreground">
+            Duration
+          </label>
+          <select
+            value={duration}
+            onChange={(e) => setDuration(parseInt(e.target.value))}
+            className="w-full rounded-2xl border border-border/60 bg-background/60 px-4 py-3 text-base font-semibold text-foreground shadow-sm focus:border-success focus:outline-none sm:px-5 sm:py-4 sm:text-lg"
+            style={selectStyle}
+          >
+            <option value={5}>5 minutes</option>
+            <option value={10}>10 minutes</option>
+            <option value={15}>15 minutes</option>
+            <option value={20}>20 minutes</option>
+            <option value={30}>30 minutes</option>
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-muted-foreground">
+            Max group size
+          </label>
+          <select
+            value={maxGroupSize}
+            onChange={(e) => setMaxGroupSize(parseInt(e.target.value))}
+            className="w-full rounded-2xl border border-border/60 bg-background/60 px-4 py-3 text-base font-semibold text-foreground shadow-sm focus:border-success focus:outline-none sm:px-5 sm:py-4 sm:text-lg"
+            style={selectStyle}
+          >
+            <option value={2}>2 people</option>
+            <option value={3}>3 people</option>
+            <option value={4}>4 people</option>
+            <option value={5}>5 people</option>
+            <option value={6}>6 people</option>
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-muted-foreground">
+            Join existing room
+          </label>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              type="text"
+              value={joinPin}
+              onChange={(e) => setJoinPin(e.target.value.slice(0, 4))}
+              placeholder="4-digit PIN"
+              className="flex-1 rounded-2xl border border-border/70 bg-background/60 px-4 py-3 text-center text-lg font-semibold tracking-[0.5em] text-foreground focus:border-primary focus:outline-none sm:px-5 sm:py-4 sm:text-xl"
+              maxLength={4}
+              inputMode="numeric"
+            />
+            <button
+              onClick={handleJoinByPin}
+              disabled={joinPin.length !== 4 || !roomByPin}
+              className="w-full rounded-2xl bg-gradient-to-r from-primary-600 to-accent-600 px-6 py-3 text-lg font-semibold text-white shadow-md transition hover:scale-[1.01] hover:shadow-lg disabled:from-muted disabled:to-muted disabled:text-muted-foreground disabled:opacity-60 sm:w-auto sm:px-8 sm:py-4"
+            >
+              Join
+            </button>
+          </div>
+          {joinPin.length === 4 && !roomByPin && roomByPin !== undefined && (
+            <p className="text-sm font-medium text-red-600">
+              Room not found with that PIN
+            </p>
+          )}
+        </div>
+      </motion.div>
+    );
+
     // Show loading state while validating saved room
     if (validatingSavedRoom) {
       return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <LoadingSpinner size="lg" color="border-green-200 border-t-green-600" />
+        <Screen
+          as="main"
+          padding="compact"
+          innerClassName="items-center justify-center"
+        >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <LoadingSpinner
+              size="lg"
+              color="border-green-200 border-t-green-600"
+            />
           </motion.div>
-        </main>
+        </Screen>
       );
     }
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md space-y-8"
-        >
-          <h1 className="text-6xl font-bold text-center text-gray-900">
-            Ice
-          </h1>
+      <Screen
+        as="main"
+        padding="compact"
+        innerClassName="items-center justify-center"
+      >
+        <PageContainer size="sm" align="center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full space-y-8 sm:space-y-10"
+          >
+            <div className="text-center space-y-2">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Launch a session
+              </p>
+              <h1 className="text-4xl font-display font-bold text-foreground sm:text-5xl">
+                Ice Host
+              </h1>
+            </div>
 
-          {validatedRoom ? (
-            // Show continue to saved room option
-            <div className="space-y-6">
-              <button
-                onClick={handleCreateRoom}
-                className="w-full px-8 py-6 text-xl font-semibold text-white bg-success text-white rounded-xl hover:opacity-90 transition shadow-lg"
-              >
-                Create New Room
-              </button>
-
-              {/* Options Toggle */}
-              <div className="text-right">
+            <div className="space-y-8">
+              <div className="flex flex-col gap-4">
                 <button
-                  onClick={() => setShowOptions(!showOptions)}
-                  className="text-sm text-gray-600 hover:text-gray-900 transition"
+                  onClick={handleCreateRoom}
+                  className="w-full rounded-3xl bg-gradient-to-r from-success to-success/80 px-6 py-4 text-lg font-semibold text-white shadow-[0_25px_45px_rgba(34,197,94,0.25)] transition hover:translate-y-0.5 hover:opacity-95 sm:text-xl"
                 >
-                  Options
+                  Start a new session
                 </button>
+
+                {validatedRoom && (
+                  <button
+                    onClick={handleContinueToRoom}
+                    className="w-full rounded-3xl bg-white/80 px-6 py-4 text-lg font-semibold text-foreground shadow-[0_12px_40px_rgba(15,23,42,0.08)] ring-1 ring-border/40 transition hover:-translate-y-0.5 hover:bg-white sm:text-xl dark:bg-white/10 dark:text-white dark:ring-white/15"
+                  >
+                    Resume room {validatedRoom.roomCode}
+                  </button>
+                )}
               </div>
 
-              {/* Collapsible Options */}
-              {showOptions && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Duration
-                    </label>
-                    <select
-                      value={duration}
-                      onChange={(e) => setDuration(parseInt(e.target.value))}
-                      className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                        backgroundPosition: 'right 1rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.5em 1.5em',
-                      }}
-                    >
-                      <option value={5}>5 minutes</option>
-                      <option value={10}>10 minutes</option>
-                      <option value={15}>15 minutes</option>
-                      <option value={20}>20 minutes</option>
-                      <option value={30}>30 minutes</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Max Group Size
-                    </label>
-                    <select
-                      value={maxGroupSize}
-                      onChange={(e) => setMaxGroupSize(parseInt(e.target.value))}
-                      className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                        backgroundPosition: 'right 1rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.5em 1.5em',
-                      }}
-                    >
-                      <option value={2}>2 people</option>
-                      <option value={3}>3 people</option>
-                      <option value={4}>4 people</option>
-                      <option value={5}>5 people</option>
-                      <option value={6}>6 people</option>
-                    </select>
-                  </div>
-
-                  <hr className="border-t-2 border-gray-300" />
-
-                  {/* Join by PIN Section */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Join existing room
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={joinPin}
-                        onChange={(e) => setJoinPin(e.target.value.slice(0, 4))}
-                        placeholder="Enter 4-digit PIN"
-                        className="flex-1 px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none text-center tracking-widest"
-                        maxLength={4}
-                      />
-                      <button
-                        onClick={handleJoinByPin}
-                        disabled={joinPin.length !== 4 || !roomByPin}
-                        className={`px-6 py-4 text-lg font-semibold rounded-xl transition ${
-                          joinPin.length === 4 && roomByPin
-                            ? "bg-gradient-to-br from-primary-600 to-accent-600 hover:bg-blue-700 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                        }`}
-                      >
-                        Join
-                      </button>
-                    </div>
-                    {joinPin.length === 4 && !roomByPin && roomByPin !== undefined && (
-                      <p className="text-sm text-red-600 mt-2">Room not found with that PIN</p>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-
-              <hr className="border-t-2 border-gray-300" />
-
-              <button
-                onClick={handleContinueToRoom}
-                className="w-full px-8 py-4 text-xl font-semibold text-green-700 border-2 border-green-600 rounded-xl hover:bg-green-50 transition"
-              >
-                Continue to {validatedRoom.roomCode}
-              </button>
-            </div>
-          ) : (
-            // No saved room, show create form
-            <div className="space-y-6">
-              <button
-                onClick={handleCreateRoom}
-                className="w-full px-8 py-6 text-xl font-semibold text-white bg-success text-white rounded-xl hover:opacity-90 transition shadow-lg"
-              >
-                Create Room
-              </button>
-
-              {/* Options Toggle */}
-              <div className="text-right">
-                <button
+              <div className="text-center text-sm text-muted-foreground">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => setShowOptions(!showOptions)}
-                  className="text-sm text-gray-600 hover:text-gray-900 transition"
+                  className="font-semibold text-primary"
                 >
-                  Options
-                </button>
+                  {showOptions ? "Hide advanced options" : "Show advanced options"}
+                </motion.button>
               </div>
 
-              {/* Collapsible Options */}
-              {showOptions && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Duration
-                    </label>
-                    <select
-                      value={duration}
-                      onChange={(e) => setDuration(parseInt(e.target.value))}
-                      className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                        backgroundPosition: 'right 1rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.5em 1.5em',
-                      }}
-                    >
-                      <option value={5}>5 minutes</option>
-                      <option value={10}>10 minutes</option>
-                      <option value={15}>15 minutes</option>
-                      <option value={20}>20 minutes</option>
-                      <option value={30}>30 minutes</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Max Group Size
-                    </label>
-                    <select
-                      value={maxGroupSize}
-                      onChange={(e) => setMaxGroupSize(parseInt(e.target.value))}
-                      className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none bg-white appearance-none cursor-pointer"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                        backgroundPosition: 'right 1rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.5em 1.5em',
-                      }}
-                    >
-                      <option value={2}>2 people</option>
-                      <option value={3}>3 people</option>
-                      <option value={4}>4 people</option>
-                      <option value={5}>5 people</option>
-                      <option value={6}>6 people</option>
-                    </select>
-                  </div>
-
-                  <hr className="border-t-2 border-gray-300" />
-
-                  {/* Join by PIN Section */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Join existing room
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={joinPin}
-                        onChange={(e) => setJoinPin(e.target.value.slice(0, 4))}
-                        placeholder="Enter 4-digit PIN"
-                        className="flex-1 px-6 py-4 text-xl border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none text-center tracking-widest"
-                        maxLength={4}
-                      />
-                      <button
-                        onClick={handleJoinByPin}
-                        disabled={joinPin.length !== 4 || !roomByPin}
-                        className={`px-6 py-4 text-lg font-semibold rounded-xl transition ${
-                          joinPin.length === 4 && roomByPin
-                            ? "bg-gradient-to-br from-primary-600 to-accent-600 hover:bg-blue-700 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                        }`}
-                      >
-                        Join
-                      </button>
-                    </div>
-                    {joinPin.length === 4 && !roomByPin && roomByPin !== undefined && (
-                      <p className="text-sm text-red-600 mt-2">Room not found with that PIN</p>
-                    )}
-                  </div>
-                </motion.div>
-              )}
+              <AnimatePresence>
+                {showOptions && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="rounded-[32px] bg-muted/30 p-5 sm:p-6 backdrop-blur-md"
+                  >
+                    {renderAdvancedOptions()}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-          )}
-        </motion.div>
-      </main>
+          </motion.div>
+        </PageContainer>
+      </Screen>
     );
   }
 
@@ -1062,11 +963,6 @@ export default function HostPage() {
                 {displayRound.round.roundNumber} / {game.totalRounds}
               </div>
             )}
-            {room && (
-              <div className="text-sm text-muted-foreground mt-1">
-                Round {room.roundNumber}
-              </div>
-            )}
           </div>
 
           {/* Slideshow Content */}
@@ -1091,7 +987,7 @@ export default function HostPage() {
                     percentA={displayRound.questionData.percentA}
                     percentB={displayRound.questionData.percentB}
                     totalResponses={displayRound.questionData.totalResponses}
-                    isRevealed={!!displayRound.round.revealedAt}
+                    isRevealed={false}
                     roundNumber={displayRound.round.roundNumber}
                     variant="projector"
                     onRevealComplete={handleRevealComplete}
@@ -1129,50 +1025,6 @@ export default function HostPage() {
 
           </main>
 
-          {/* "New Round?" Button - Bottom Right (Last Slide After Reveal) */}
-          <AnimatePresence>
-            {showNewGameButton && (
-              <motion.button
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3 }}
-                onClick={async () => {
-                  const confirmed = await showConfirm({
-                    title: "Start New Round?",
-                    message: "This will reset all game data and start fresh.",
-                  });
-                  if (confirmed && roomId && pin && room) {
-                    try {
-                      // Reset duration to 10 minutes (600 seconds)
-                      const targetDuration = 600;
-                      const adjustment = targetDuration - room.phase1Duration;
-                      if (adjustment !== 0) {
-                        await adjustPhase1Duration({
-                          roomId: roomId as Id<"rooms">,
-                          pin: pin,
-                          adjustmentSeconds: adjustment,
-                        });
-                      }
-
-                      await resetRoom({
-                        roomId: roomId as Id<"rooms">,
-                        pin: pin,
-                      });
-                      showToast("Ready to start a new session");
-                    } catch (error: any) {
-                      showToast(error.message, "error");
-                    }
-                  }
-                }}
-                className="fixed bottom-8 right-8 z-50 w-20 h-20 flex items-center justify-center bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white rounded-full hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-110 active:scale-95"
-                aria-label="Start new round"
-              >
-                <ArrowRight className="w-10 h-10" />
-              </motion.button>
-            )}
-          </AnimatePresence>
-
           {/* Control Buttons - Bottom Center */}
           <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex gap-4">
             {slideshowReady && firstRound?.questionData && (
@@ -1182,37 +1034,6 @@ export default function HostPage() {
                 aria-label="Start slideshow"
               >
                 <Play className="w-10 h-10 ml-1" />
-              </button>
-            )}
-            {slideshowReady && !firstRound?.questionData && (
-              <button
-                onClick={async () => {
-                  if (!roomId || !pin || !room) return;
-                  try {
-                    // Reset duration to 10 minutes (600 seconds)
-                    const targetDuration = 600;
-                    const adjustment = targetDuration - room.phase1Duration;
-                    if (adjustment !== 0) {
-                      await adjustPhase1Duration({
-                        roomId: roomId as Id<"rooms">,
-                        pin: pin,
-                        adjustmentSeconds: adjustment,
-                      });
-                    }
-
-                    await resetRoom({
-                      roomId: roomId as Id<"rooms">,
-                      pin: pin,
-                    });
-                    showToast("Ready to start a new session");
-                  } catch (error: any) {
-                    showToast(error.message, "error");
-                  }
-                }}
-                className="w-20 h-20 flex items-center justify-center bg-gradient-to-br from-accent-600 to-primary-600 dark:from-accent-500 dark:to-primary-500 text-white rounded-full hover:from-accent-700 hover:to-primary-700 dark:hover:from-accent-600 dark:hover:to-primary-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-110 active:scale-95"
-                aria-label="Start new round"
-              >
-                <ArrowRight className="w-10 h-10" />
               </button>
             )}
             {game && game.status === "in_progress" && (

@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 
 // Question generation algorithm for Phase 2
 // Takes Phase 1 answers and generates "What % of the class..." questions
@@ -14,8 +14,7 @@ function getPercentageBucket(percentage: number): string {
 
 async function generateSlideshowQuestions(
   ctx: any,
-  roomId: any,
-  roundNumber: number
+  roomId: any
 ): Promise<
   Array<{
     questionId: any;
@@ -27,10 +26,10 @@ async function generateSlideshowQuestions(
     totalResponses: number;
   }>
 > {
-  // Get all answers for this room and round number
+  // Get all answers for this room
   const answers = await ctx.db
     .query("answers")
-    .withIndex("by_room_and_round", (q: any) => q.eq("roomId", roomId).eq("roundNumber", roundNumber))
+    .withIndex("by_room", (q: any) => q.eq("roomId", roomId))
     .collect();
 
   // Get all questions to get their text
@@ -100,23 +99,18 @@ export const generateGame = mutation({
     roomId: v.id("rooms"),
   },
   handler: async (ctx, args) => {
-    // Get the room to access its current round number
-    const room = await ctx.db.get(args.roomId);
-    if (!room) throw new Error("Room not found");
-
-    // Check if game already exists for this room and round
+    // Check if game already exists for this room
     const existingGame = await ctx.db
       .query("games")
-      .withIndex("by_room_and_data_round", (q) =>
-        q.eq("roomId", args.roomId).eq("dataRoundNumber", room.roundNumber))
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
       .first();
 
     if (existingGame) {
-      return { gameId: existingGame._id, message: "Game already exists for this round", totalRounds: existingGame.totalRounds };
+      return { gameId: existingGame._id, message: "Game already exists for this room", totalRounds: existingGame.totalRounds };
     }
 
-    // Generate questions from current round's data
-    const questions = await generateSlideshowQuestions(ctx, args.roomId, room.roundNumber);
+    // Generate questions from room's data
+    const questions = await generateSlideshowQuestions(ctx, args.roomId);
 
     if (questions.length === 0) {
       throw new Error(
@@ -124,10 +118,9 @@ export const generateGame = mutation({
       );
     }
 
-    // Create game for this round
+    // Create game for this room
     const gameId = await ctx.db.insert("games", {
       roomId: args.roomId,
-      dataRoundNumber: room.roundNumber, // Tag which round's data this represents
       status: "not_started",
       currentRound: 0,
       totalRounds: questions.length,
@@ -150,6 +143,59 @@ export const generateGame = mutation({
     }
 
     return { gameId, totalRounds: questions.length };
+  },
+});
+
+// Internal mutation to auto-generate game (called by scheduler)
+export const generateGameInternal = internalMutation({
+  args: {
+    roomId: v.id("rooms"),
+  },
+  handler: async (ctx, args) => {
+    // Check if game already exists for this room
+    const existingGame = await ctx.db
+      .query("games")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .first();
+
+    if (existingGame) {
+      console.log("Game already exists for room, skipping generation");
+      return;
+    }
+
+    // Generate questions from room's data
+    const questions = await generateSlideshowQuestions(ctx, args.roomId);
+
+    if (questions.length === 0) {
+      console.log("Not enough data to generate slideshow");
+      return;
+    }
+
+    // Create game for this room
+    const gameId = await ctx.db.insert("games", {
+      roomId: args.roomId,
+      status: "not_started",
+      currentRound: 0,
+      totalRounds: questions.length,
+      startedAt: undefined,
+      completedAt: undefined,
+    });
+
+    // Create rounds with original question data and percentages
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      await ctx.db.insert("gameRounds", {
+        gameId,
+        roundNumber: i + 1,
+        questionId: q.questionId,
+        questionText: q.questionText,
+        correctAnswer: q.percentA >= q.percentB ? "A" : "B",
+        actualPercentage: Math.max(q.percentA, q.percentB),
+        revealedAt: undefined,
+      });
+    }
+
+    console.log(`Auto-generated game with ${questions.length} rounds`);
   },
 });
 
@@ -364,6 +410,7 @@ export const endGame = mutation({
 export const getGameByRoom = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
+    // Return the game for this room
     return await ctx.db
       .query("games")
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
@@ -415,10 +462,10 @@ export const getCurrentRound = query({
     // Get original question to fetch optionA and optionB
     const question = await ctx.db.get(round.questionId);
 
-    // Get all answers for this question in this room and round
+    // Get all answers for this question in this room
     const answers = await ctx.db
       .query("answers")
-      .withIndex("by_room_and_round", (q) => q.eq("roomId", game.roomId).eq("roundNumber", game.dataRoundNumber))
+      .withIndex("by_room", (q) => q.eq("roomId", game.roomId))
       .filter((q) => q.eq(q.field("questionId"), round.questionId))
       .collect();
 
@@ -463,10 +510,10 @@ export const getRoundByNumber = query({
     // Get original question to fetch optionA and optionB
     const question = await ctx.db.get(round.questionId);
 
-    // Get all answers for this question in this room and round
+    // Get all answers for this question in this room
     const answers = await ctx.db
       .query("answers")
-      .withIndex("by_room_and_round", (q) => q.eq("roomId", game.roomId).eq("roundNumber", game.dataRoundNumber))
+      .withIndex("by_room", (q) => q.eq("roomId", game.roomId))
       .filter((q) => q.eq(q.field("questionId"), round.questionId))
       .collect();
 
