@@ -10,8 +10,9 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { getEmojiName } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
-import { Maximize, Minimize, Play, Pause, Square, Settings, Sun, Moon, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Maximize, Minimize, Play, Pause, Square, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageContainer, Screen } from "@/components/layout/Page";
+import { TitleBar } from "@/components/TitleBar";
 
 const ROOM_STORAGE_KEY = "ice-host-room";
 
@@ -60,8 +61,6 @@ export default function HostPage() {
   const [usersExpanded, setUsersExpanded] = useState(true);
   const [lastUserCount, setLastUserCount] = useState(0);
   const [joinNotifications, setJoinNotifications] = useState<Array<{ id: string; avatar: string; x: number; y: number }>>([]);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [isDark, setIsDark] = useState(false);
 
   const createRoom = useMutation(api.rooms.createRoom);
   const startPhase1 = useMutation(api.rooms.startPhase1);
@@ -215,34 +214,6 @@ export default function HostPage() {
       setLastUserCount(roomUsers.length);
     }
   }, [roomUsers, lastUserCount]);
-
-  // Initialize dark mode
-  useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const shouldBeDark = stored === "dark" || (!stored && prefersDark);
-    setIsDark(shouldBeDark);
-
-    if (shouldBeDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, []);
-
-  const toggleDarkMode = () => {
-    const newDarkMode = !isDark;
-    setIsDark(newDarkMode);
-
-    if (newDarkMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-    setSettingsOpen(false);
-  };
 
   const handleCreateRoom = async () => {
     try {
@@ -630,43 +601,7 @@ export default function HostPage() {
     if (!room.phase1StartedAt) {
       return (
         <div className="fixed inset-0 z-50 bg-background overflow-hidden">
-          {/* Settings in top-right */}
-          <div className="fixed top-4 right-4 z-50">
-            <button
-              onClick={() => setSettingsOpen(!settingsOpen)}
-              className="p-3 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
-              aria-label="Settings"
-            >
-              <Settings className="w-6 h-6 text-foreground" />
-            </button>
-
-            {/* Settings Dropdown */}
-            <AnimatePresence>
-              {settingsOpen && (
-                <>
-                  <div onClick={() => setSettingsOpen(false)} className="fixed inset-0 z-40" />
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className="absolute top-14 right-0 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden min-w-[180px]"
-                  >
-                    <button
-                      onClick={toggleDarkMode}
-                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted transition-colors text-left"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center text-foreground">
-                        {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                      </div>
-                      <span className="text-sm font-medium text-foreground">
-                        {isDark ? "Light Mode" : "Dark Mode"}
-                      </span>
-                    </button>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+          <TitleBar />
 
           <main className="flex min-h-screen flex-col items-center justify-center p-12">
             <motion.div
@@ -772,43 +707,7 @@ export default function HostPage() {
     if (room.phase1Active) {
       return (
         <div className="fixed inset-0 z-50 bg-background overflow-hidden">
-          {/* Settings in top-right */}
-          <div className="fixed top-4 right-4 z-50">
-            <button
-              onClick={() => setSettingsOpen(!settingsOpen)}
-              className="p-3 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
-              aria-label="Settings"
-            >
-              <Settings className="w-6 h-6 text-foreground" />
-            </button>
-
-            {/* Settings Dropdown */}
-            <AnimatePresence>
-              {settingsOpen && (
-                <>
-                  <div onClick={() => setSettingsOpen(false)} className="fixed inset-0 z-40" />
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className="absolute top-14 right-0 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden min-w-[180px]"
-                  >
-                    <button
-                      onClick={toggleDarkMode}
-                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted transition-colors text-left"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center text-foreground">
-                        {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                      </div>
-                      <span className="text-sm font-medium text-foreground">
-                        {isDark ? "Light Mode" : "Dark Mode"}
-                      </span>
-                    </button>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+          <TitleBar />
 
           <main className="flex min-h-screen flex-col items-center justify-center p-12">
             <motion.div
@@ -913,42 +812,7 @@ export default function HostPage() {
 
       return (
         <div className="fixed inset-0 z-50 bg-background overflow-hidden">
-          {/* Settings in top-right */}
-          <div className="fixed top-4 right-4 z-50">
-            <button
-              onClick={() => setSettingsOpen(!settingsOpen)}
-              className="p-3 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
-              aria-label="Settings"
-            >
-              <Settings className="w-6 h-6 text-foreground" />
-            </button>
-
-            <AnimatePresence>
-              {settingsOpen && (
-                <>
-                  <div onClick={() => setSettingsOpen(false)} className="fixed inset-0 z-40" />
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className="absolute top-14 right-0 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden min-w-[180px]"
-                  >
-                    <button
-                      onClick={toggleDarkMode}
-                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted transition-colors text-left"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center text-foreground">
-                        {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                      </div>
-                      <span className="text-sm font-medium text-foreground">
-                        {isDark ? "Light Mode" : "Dark Mode"}
-                      </span>
-                    </button>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+          <TitleBar />
 
           {/* Room Code - Top Center */}
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 text-center">
