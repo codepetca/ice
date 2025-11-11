@@ -555,9 +555,6 @@ export default function HostPage() {
             className="w-full space-y-8 sm:space-y-10"
           >
             <div className="text-center space-y-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Launch a session
-              </p>
               <h1 className="text-4xl font-display font-bold text-foreground sm:text-5xl">
                 Ice Host
               </h1>
@@ -569,7 +566,7 @@ export default function HostPage() {
                   onClick={handleCreateRoom}
                   className="w-full rounded-3xl bg-gradient-to-r from-success to-success/80 px-6 py-4 text-lg font-semibold text-white shadow-[0_25px_45px_rgba(34,197,94,0.25)] transition hover:translate-y-0.5 hover:opacity-95 sm:text-xl"
                 >
-                  Start a new session
+                  Create a New Room
                 </button>
 
                 {validatedRoom && (
@@ -588,7 +585,7 @@ export default function HostPage() {
                   onClick={() => setShowOptions(!showOptions)}
                   className="font-semibold text-primary"
                 >
-                  {showOptions ? "Hide advanced options" : "Show advanced options"}
+                  {showOptions ? "Hide options" : "Options"}
                 </motion.button>
               </div>
 
