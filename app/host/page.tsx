@@ -559,7 +559,7 @@ export default function HostPage() {
                 Launch a session
               </p>
               <h1 className="text-4xl font-display font-bold text-foreground sm:text-5xl">
-                Ice Host
+                Ice
               </h1>
             </div>
 
