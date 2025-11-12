@@ -115,7 +115,7 @@ export default function Home() {
   };
 
   return (
-    <Screen as="main" padding="compact" className="items-center justify-center">
+    <Screen as="main" padding="compact" className="items-center">
       <PageContainer size="sm" align="center">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -166,21 +166,21 @@ export default function Home() {
             )}
           </div>
         </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="flex justify-center mb-6 sm:mb-8"
-        >
-          <Link
-            href="/host"
-            className="text-base text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 py-4 cursor-pointer transition-colors no-underline"
-          >
-            Host
-          </Link>
-        </motion.div>
       </PageContainer>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="pb-6 sm:pb-8 text-center"
+      >
+        <Link
+          href="/host"
+          className="text-base text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 py-4 cursor-pointer transition-colors no-underline"
+        >
+          Host
+        </Link>
+      </motion.div>
     </Screen>
   );
 }
