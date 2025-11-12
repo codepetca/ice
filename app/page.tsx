@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -114,12 +115,12 @@ export default function Home() {
   };
 
   return (
-    <Screen as="main" padding="compact" className="items-center justify-center">
-      <PageContainer size="sm" align="center">
+    <Screen as="main" padding="compact" innerClassName="justify-between">
+      <div className="flex flex-col items-center justify-center flex-1">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full space-y-10 sm:space-y-12"
+          className="w-full max-w-md space-y-10 sm:space-y-12"
         >
           <div className="text-center space-y-1">
             <h1 className="text-4xl sm:text-6xl font-display font-bold text-foreground tracking-tight">
@@ -165,7 +166,21 @@ export default function Home() {
             )}
           </div>
         </motion.div>
-      </PageContainer>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="pb-10 sm:pb-16 text-center"
+      >
+        <Link
+          href="/host"
+          className="text-base text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 py-4 cursor-pointer transition-colors no-underline"
+        >
+          Host
+        </Link>
+      </motion.div>
     </Screen>
   );
 }

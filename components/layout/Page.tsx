@@ -54,7 +54,7 @@ export function Screen<T extends ElementType = "div">({
 
   return (
     <Component
-      className={cn("min-h-dvh w-full bg-background text-foreground", className)}
+      className={cn("h-dvh w-full bg-background text-foreground", className)}
       style={{ ...safeAreaStyle, ...style }}
       {...rest}
     >
