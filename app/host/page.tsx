@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { getEmojiName } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
 import { Maximize, Minimize, Play, Pause, Square, Snowflake, ChevronUp, ChevronDown, Users, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
