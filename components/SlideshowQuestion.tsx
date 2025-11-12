@@ -70,13 +70,13 @@ export function SlideshowQuestion({
   // Variant-specific styles - minimal and clean
   const styles = {
     projector: {
-      containerClass: "space-y-6",
-      questionClass: "text-5xl md:text-6xl font-display font-bold mb-12 text-foreground",
-      cardClass: "rounded-lg p-8 min-h-[120px] relative overflow-hidden border-2 transition-all duration-700 ease-out",
-      labelClass: "text-3xl md:text-4xl font-display font-bold text-card-foreground text-left flex-1",
-      percentClass: "text-6xl md:text-7xl font-display font-bold text-card-foreground",
-      percentContainerClass: "w-[180px] flex items-center justify-end",
-      responseClass: "text-xl font-sans text-muted-foreground text-center pt-6 min-h-[3rem]",
+      containerClass: "space-y-2 sm:space-y-4",
+      questionClass: "text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-display font-bold mb-4 sm:mb-6 md:mb-8 lg:mb-12 text-foreground max-w-[90%] mx-auto",
+      cardClass: "rounded-lg p-4 sm:p-5 md:p-6 lg:p-8 min-h-[80px] sm:min-h-[100px] md:min-h-[120px] relative overflow-hidden border-2 transition-all duration-700 ease-out",
+      labelClass: "text-base sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-display font-bold text-card-foreground text-left flex-1",
+      percentClass: "text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-display font-bold text-card-foreground",
+      percentContainerClass: "w-[80px] sm:w-[100px] md:w-[140px] lg:w-[180px] flex items-center justify-end",
+      responseClass: "text-sm sm:text-base md:text-lg lg:text-xl font-sans text-muted-foreground text-center pt-2 sm:pt-3 md:pt-4 lg:pt-6 min-h-[2rem] sm:min-h-[2.5rem] md:min-h-[3rem]",
       winnerBorderClass: "border-success",
       normalBorderClass: "border-border",
       winnerFillClass: "bg-success/20",
