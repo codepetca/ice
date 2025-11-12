@@ -620,37 +620,37 @@ export default function HostPage() {
             >
 
               {/* Timer with controls */}
-              <div className="flex items-center justify-center gap-6 mb-8">
+              <div className="flex items-center justify-center gap-2 sm:gap-4 md:gap-6 mb-8">
                 {/* Invisible spacer for visual balance */}
-                <div className="w-12 flex flex-col gap-2 invisible" aria-hidden="true">
-                  <div className="h-12"></div>
-                  <div className="h-12"></div>
+                <div className="w-8 sm:w-10 md:w-12 flex flex-col gap-1 sm:gap-2 invisible" aria-hidden="true">
+                  <div className="h-8 sm:h-10 md:h-12"></div>
+                  <div className="h-8 sm:h-10 md:h-12"></div>
                 </div>
 
-                <div className="text-9xl font-bold tabular-nums text-foreground">
+                <div className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-bold tabular-nums text-foreground">
                   {Math.floor(room.phase1Duration / 60).toString().padStart(2, "0")}:{(room.phase1Duration % 60).toString().padStart(2, "0")}
                 </div>
 
                 {/* Time adjustment - to the right of clock */}
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1 sm:gap-2">
                   {/* Increase time button */}
                   <button
                     onClick={() => handleAdjustTime(1)}
                     disabled={room.phase1Duration >= 1200}
-                    className="w-12 h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
                     aria-label="Increase time by 1 minute"
                   >
-                    <ChevronUp className="w-5 h-5" />
+                    <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
 
                   {/* Decrease time button */}
                   <button
                     onClick={() => handleAdjustTime(-1)}
                     disabled={room.phase1Duration <= 60}
-                    className="w-12 h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
                     aria-label="Decrease time by 1 minute"
                   >
-                    <ChevronDown className="w-5 h-5" />
+                    <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>
@@ -727,37 +727,37 @@ export default function HostPage() {
             >
 
               {/* Timer with controls */}
-              <div className="flex items-center justify-center gap-8 mb-8">
+              <div className="flex items-center justify-center gap-2 sm:gap-4 md:gap-8 mb-8">
                 {/* Invisible spacer for visual balance */}
-                <div className="w-12 flex flex-col gap-2 invisible" aria-hidden="true">
-                  <div className="h-12"></div>
-                  <div className="h-12"></div>
+                <div className="w-8 sm:w-10 md:w-12 flex flex-col gap-1 sm:gap-2 invisible" aria-hidden="true">
+                  <div className="h-8 sm:h-10 md:h-12"></div>
+                  <div className="h-8 sm:h-10 md:h-12"></div>
                 </div>
 
-                <div className={`text-9xl font-bold tabular-nums ${room.windingDownStartedAt ? 'text-orange-500' : 'text-foreground'}`}>
+                <div className={`text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-bold tabular-nums ${room.windingDownStartedAt ? 'text-orange-500' : 'text-foreground'}`}>
                   {minutes.toString().padStart(2, "0")}:{seconds.toString().padStart(2, "0")}
                 </div>
 
                 {/* Time adjustment - to the right of clock */}
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1 sm:gap-2">
                   {/* Increase time button */}
                   <button
                     onClick={() => handleAdjustTime(1)}
                     disabled={room.phase1Duration >= 1200 || !!room.windingDownStartedAt}
-                    className="w-12 h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
                     aria-label="Increase time by 1 minute"
                   >
-                    <ChevronUp className="w-5 h-5" />
+                    <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
 
                   {/* Decrease time button */}
                   <button
                     onClick={() => handleAdjustTime(-1)}
                     disabled={timeRemaining < 60 || !!room.windingDownStartedAt}
-                    className="w-12 h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center bg-muted/50 hover:bg-muted text-foreground rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
                     aria-label="Decrease time by 1 minute"
                   >
-                    <ChevronDown className="w-5 h-5" />
+                    <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>
