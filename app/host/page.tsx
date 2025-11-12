@@ -816,19 +816,19 @@ export default function HostPage() {
           <TitleBar />
 
           {/* Room Code - Fixed below title bar */}
-          <div className="fixed top-16 left-0 right-0 z-40 text-center py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
+          <div className="fixed top-16 left-0 right-0 z-40 text-center py-1 sm:py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
             <div className="text-3xl font-display font-bold text-foreground uppercase tracking-[0.5em]">
               {roomCode}
             </div>
             {game && displayRound && game.status === "in_progress" && (
-              <div className="text-xl text-muted-foreground mt-2">
+              <div className="text-xl text-muted-foreground mt-1 sm:mt-2">
                 {displayRound.round.roundNumber} / {game.totalRounds}
               </div>
             )}
           </div>
 
           {/* Slideshow Content */}
-          <main className="flex min-h-screen flex-col items-center justify-center p-12 overflow-hidden relative">
+          <main className="flex min-h-[100vh] flex-col items-center justify-center px-4 sm:px-6 md:px-8 lg:px-12 py-4 overflow-hidden relative text-center">
             {game?.status === "in_progress" && displayRound?.questionData ? (
               <AnimatePresence mode="wait">
                 <motion.div
@@ -840,7 +840,7 @@ export default function HostPage() {
                     duration: 0.5,
                     ease: [0.4, 0.0, 0.2, 1]
                   }}
-                  className="w-full max-w-6xl"
+                  className="w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl"
                 >
                   <SlideshowQuestion
                     questionText={displayRound.questionData.text || displayRound.round.questionText}
@@ -860,7 +860,7 @@ export default function HostPage() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-6xl"
+                className="w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl"
               >
                 <SlideshowQuestion
                   questionText={firstRound.questionData.text || firstRound.round.questionText}
@@ -881,7 +881,7 @@ export default function HostPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="text-center space-y-8"
               >
-                <div className="text-5xl font-bold text-foreground">No responses collected</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-foreground">No responses collected</div>
               </motion.div>
             ) : null}
 

@@ -15,6 +15,8 @@ import { getRandomAvatars } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
 import { TitleBar } from "@/components/TitleBar";
+import { AvatarDisplay } from "@/components/AvatarDisplay";
+import { WaitingScreen } from "@/components/WaitingScreen";
 
 function UserPageContent() {
   const searchParams = useSearchParams();
@@ -630,17 +632,6 @@ function UserPageContent() {
     );
   }
 
-  // Shared avatar display component
-  const AvatarDisplay = ({ avatar, size = "large" }: { avatar: string; size?: "large" | "xlarge" }) => (
-    <div className="relative inline-block">
-      <div className={`${size === "xlarge" ? "text-9xl" : "text-7xl"} relative z-10`}>
-        {avatar}
-      </div>
-      {/* Subtle circular halo background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary-100/40 to-accent-100/40 rounded-full blur-2xl scale-75 -z-10" />
-    </div>
-  );
-
   // Browsing state
   if (state.matches("browsing")) {
     if (room && !room.phase1Active) {
@@ -655,7 +646,7 @@ function UserPageContent() {
             className="w-full max-w-md space-y-8 text-center mt-8"
           >
             <div className="mb-6">
-              <AvatarDisplay avatar={userAvatar} size="large" />
+              <AvatarDisplay avatar={userAvatar} size="lg" />
             </div>
             <h2 className="text-3xl font-display font-bold text-gray-900 mb-4">
               You&apos;re in!
@@ -702,7 +693,7 @@ function UserPageContent() {
           className="w-full max-w-md space-y-8 text-center mt-8"
         >
           <div className="mb-6">
-            <AvatarDisplay avatar={userAvatar} size="xlarge" />
+            <AvatarDisplay avatar={userAvatar} size="xl" />
           </div>
 
           <div className="space-y-6">
@@ -774,7 +765,7 @@ function UserPageContent() {
     const inRequestsDisplay = incomingRequests && incomingRequests.length > 0;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background">
         <TitleBar />
         {inRequestsDisplay && (
           <RequestBanner
@@ -785,33 +776,24 @@ function UserPageContent() {
           />
         )}
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-white rounded-2xl shadow-xl p-8 space-y-6 text-center"
+        <WaitingScreen
+          title={outgoingRequest ? "Waiting for response from..." : "Waiting for response..."}
         >
           {outgoingRequest && (
-            <>
-              <p className="text-2xl font-bold text-gray-900 mb-4">
-                Waiting for response from...
-              </p>
-              <div className="text-9xl mb-4">{outgoingRequest.target.avatar}</div>
-            </>
+            <AvatarDisplay
+              avatar={outgoingRequest.target.avatar}
+              size="xl"
+              withHalo={true}
+            />
           )}
-          {!outgoingRequest && (
-            <>
-              <p className="text-xl font-semibold text-gray-700">
-                Waiting for response...
-              </p>
-            </>
-          )}
+
           <button
             onClick={handleCancelRequest}
-            className="w-full px-6 py-4 text-lg font-semibold text-gray-700 border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition"
+            className="w-full max-w-xs px-6 py-4 text-base sm:text-lg font-semibold text-foreground border-2 border-border rounded-xl hover:bg-muted transition"
           >
             Cancel Request
           </button>
-        </motion.div>
+        </WaitingScreen>
       </main>
     );
   }
@@ -1034,17 +1016,9 @@ function UserPageContent() {
   // Session locked state
   if (state.matches("session_locked")) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background">
         <TitleBar />
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center"
-        >
-          <h2 className="text-4xl font-bold text-gray-900">
-            Results Starting...
-          </h2>
-        </motion.div>
+        <WaitingScreen title="Results Starting..." />
       </main>
     );
   }
