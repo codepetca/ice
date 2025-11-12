@@ -816,12 +816,12 @@ export default function HostPage() {
           <TitleBar />
 
           {/* Room Code - Fixed below title bar */}
-          <div className="fixed top-16 left-0 right-0 z-40 text-center py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
+          <div className="fixed top-16 left-0 right-0 z-40 text-center py-1 sm:py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
             <div className="text-3xl font-display font-bold text-foreground uppercase tracking-[0.5em]">
               {roomCode}
             </div>
             {game && displayRound && game.status === "in_progress" && (
-              <div className="text-xl text-muted-foreground mt-2">
+              <div className="text-xl text-muted-foreground mt-1 sm:mt-2">
                 {displayRound.round.roundNumber} / {game.totalRounds}
               </div>
             )}

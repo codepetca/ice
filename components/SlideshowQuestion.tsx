@@ -71,7 +71,7 @@ export function SlideshowQuestion({
   const styles = {
     projector: {
       containerClass: "space-y-2 sm:space-y-4",
-      questionClass: "text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-display font-bold mb-4 sm:mb-6 md:mb-8 lg:mb-12 text-foreground max-w-[90%] mx-auto",
+      questionClass: "text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-display font-bold mb-2 sm:mb-4 md:mb-6 lg:mb-8 xl:mb-12 text-foreground max-w-[90%] mx-auto",
       cardClass: "rounded-lg p-4 sm:p-5 md:p-6 lg:p-8 min-h-[80px] sm:min-h-[100px] md:min-h-[120px] relative overflow-hidden border-2 transition-all duration-700 ease-out",
       labelClass: "text-base sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-display font-bold text-card-foreground text-left flex-1",
       percentClass: "text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-display font-bold text-card-foreground",
