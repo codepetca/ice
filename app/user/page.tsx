@@ -180,7 +180,7 @@ function UserPageContent() {
       room &&
       !room.phase1Active &&
       room.phase1StartedAt &&
-      (state.matches("browsing") || state.matches("question_active") || state.matches("wrap_up"))
+      (state.matches("browsing") || state.matches("question_active"))
     ) {
       send({ type: "SESSION_LOCKED" });
     }
@@ -1057,7 +1057,9 @@ function UserPageContent() {
     );
   }
 
-  // Wrap up state
+  // Wrap up state - DISABLED: "wrap_up" state doesn't exist in userStateMachine
+  // This code is unreachable and has been commented out
+  /*
   if (state.matches("wrap_up")) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-green-50 to-white">
@@ -1084,6 +1086,7 @@ function UserPageContent() {
       </main>
     );
   }
+  */
 
   // Session locked state
   if (state.matches("session_locked")) {

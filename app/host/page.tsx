@@ -603,21 +603,22 @@ export default function HostPage() {
         <div className="fixed inset-0 z-50 bg-background overflow-hidden">
           <TitleBar />
 
+          {/* URL and Room Code - Fixed below title bar */}
+          <div className="fixed top-16 left-0 right-0 z-40 text-center py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
+            <div className="text-2xl text-muted-foreground font-medium mb-2">
+              https://joinroom.link
+            </div>
+            <div className="text-5xl font-display font-bold text-foreground uppercase tracking-[0.25em] -mr-[0.25em]">
+              {roomCode}
+            </div>
+          </div>
+
           <main className="flex min-h-screen flex-col items-center justify-center p-12">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="text-center space-y-16"
             >
-              {/* URL and Room Code */}
-              <div className="text-center">
-                <div className="text-3xl text-muted-foreground font-medium mb-3">
-                  https://joinroom.link
-                </div>
-                <div className="text-6xl font-display font-bold text-foreground uppercase tracking-[0.25em] -mr-[0.25em]">
-                  {roomCode}
-                </div>
-              </div>
 
               {/* Timer with controls */}
               <div className="flex items-center justify-center gap-6 mb-8">
@@ -709,21 +710,22 @@ export default function HostPage() {
         <div className="fixed inset-0 z-50 bg-background overflow-hidden">
           <TitleBar />
 
+          {/* URL and Room Code - Fixed below title bar */}
+          <div className="fixed top-16 left-0 right-0 z-40 text-center py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
+            <div className="text-2xl text-muted-foreground font-medium mb-2">
+              https://joinroom.link
+            </div>
+            <div className="text-5xl font-display font-bold text-foreground uppercase tracking-[0.25em] -mr-[0.25em]">
+              {roomCode}
+            </div>
+          </div>
+
           <main className="flex min-h-screen flex-col items-center justify-center p-12">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="text-center space-y-16"
             >
-              {/* URL and Room Code */}
-              <div className="text-center">
-                <div className="text-3xl text-muted-foreground font-medium mb-3">
-                  https://joinroom.link
-                </div>
-                <div className="text-6xl font-display font-bold text-foreground uppercase tracking-[0.25em] -mr-[0.25em]">
-                  {roomCode}
-                </div>
-              </div>
 
               {/* Timer with controls */}
               <div className="flex items-center justify-center gap-8 mb-8">
@@ -814,8 +816,8 @@ export default function HostPage() {
         <div className="fixed inset-0 z-50 bg-background overflow-hidden">
           <TitleBar />
 
-          {/* Room Code - Top Center */}
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 text-center">
+          {/* Room Code - Fixed below title bar */}
+          <div className="fixed top-16 left-0 right-0 z-40 text-center py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
             <div className="text-3xl font-display font-bold text-foreground uppercase tracking-[0.5em]">
               {roomCode}
             </div>

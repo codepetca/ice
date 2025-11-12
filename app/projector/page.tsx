@@ -106,8 +106,8 @@ export default function ProjectorPage() {
       <main className="min-h-screen p-12 bg-background dark:bg-card text-white flex items-center justify-center">
         <TitleBar />
 
-        {/* Slide Counter - Top Center */}
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 text-center">
+        {/* Slide Counter - Fixed below title bar */}
+        <div className="fixed top-16 left-0 right-0 z-40 text-center py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
           <div className="text-2xl text-muted-foreground">
             {currentRound.round.roundNumber} / {game.totalRounds}
           </div>
@@ -167,7 +167,14 @@ export default function ProjectorPage() {
     <main className="min-h-screen p-12 bg-background dark:bg-card text-white">
       <TitleBar />
 
-      <div className="max-w-7xl mx-auto space-y-12">
+      {/* Room Code - Fixed below title bar */}
+      <div className="fixed top-16 left-0 right-0 z-40 text-center py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
+        <div className="text-3xl text-accent-200">
+          Room Code: <span className="font-bold text-white">{roomCode}</span>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto space-y-12 pt-20">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -175,9 +182,6 @@ export default function ProjectorPage() {
           className="text-center space-y-4"
         >
           <h1 className="text-7xl font-bold">{room.name}</h1>
-          <div className="text-3xl text-accent-200">
-            Room Code: <span className="font-bold text-white">{roomCode}</span>
-          </div>
         </motion.div>
 
         {/* Status Badge */}
