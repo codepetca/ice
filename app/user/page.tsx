@@ -11,7 +11,7 @@ import confetti from "canvas-confetti";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
 import { RequestBanner } from "@/components/RequestBanner";
-import { getRandomAvatars, getEmojiName } from "@/lib/avatars";
+import { getRandomAvatars } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
 import { TitleBar } from "@/components/TitleBar";
@@ -27,7 +27,6 @@ function UserPageContent() {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [userSearch, setUserSearch] = useState("");
   const prevOutgoingRequestRef = useRef<any>(undefined);
   const hasCheckedSessionRef = useRef(false);
 
@@ -635,7 +634,6 @@ function UserPageContent() {
   if (state.matches("browsing")) {
     if (room && !room.phase1Active) {
       const userAvatar = state.context.avatar || selectedAvatar;
-      const userAvatarName = userAvatar ? getEmojiName(userAvatar) : "";
 
       return (
         <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
@@ -653,9 +651,6 @@ function UserPageContent() {
             </p>
             <div className="bg-gradient-to-br from-primary-50 to-accent-50 border-3 border-primary-300 rounded-3xl p-6 mt-8">
               <div className="text-7xl mb-4">{userAvatar}</div>
-              <p className="text-2xl font-display font-bold text-primary-700 capitalize">
-                {userAvatarName}
-              </p>
             </div>
           </motion.div>
         </main>
@@ -663,7 +658,6 @@ function UserPageContent() {
     }
 
     const userAvatar = state.context.avatar || selectedAvatar;
-    const userAvatarName = userAvatar ? getEmojiName(userAvatar) : "";
 
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
@@ -697,9 +691,6 @@ function UserPageContent() {
           className="w-full max-w-md space-y-8 text-center"
         >
           <div>
-            <h2 className="text-2xl font-semibold text-gray-700 mb-4 capitalize">
-              {userAvatarName}
-            </h2>
             <div className="text-9xl mb-6">{userAvatar}</div>
           </div>
 
@@ -711,67 +702,8 @@ function UserPageContent() {
                 </h3>
                 {!room?.windingDownStartedAt && (
                   <>
-                    {/* Search/Filter Box */}
-                    <div className="mb-4 relative">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-primary-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
-                      </svg>
-                      <input
-                        type="text"
-                        value={userSearch}
-                        onChange={(e) => setUserSearch(e.target.value)}
-                        className="w-full pl-10 pr-10 py-3 text-lg border-2 border-primary-300 rounded-xl focus:border-primary-500 focus:outline-none bg-white"
-                      />
-                      {userSearch && (
-                        <button
-                          onClick={() => setUserSearch("")}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-400 hover:text-primary-600 transition"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-
                     <div className="grid grid-cols-3 gap-4">
-                      {[...availableUsers]
-                        .sort((a, b) => {
-                          const nameA = getEmojiName(a.avatar);
-                          const nameB = getEmojiName(b.avatar);
-                          return nameA.localeCompare(nameB);
-                        })
-                        .filter((user) => {
-                          const userName = getEmojiName(user.avatar).toLowerCase();
-
-                          // Filter by search text
-                          if (userSearch && !userName.includes(userSearch.toLowerCase())) {
-                            return false;
-                          }
-
-                          return true;
-                        })
-                        .map((user) => {
+                      {availableUsers.map((user) => {
                         const hasIncomingRequests = incomingRequests && incomingRequests.length > 0;
                         const isDisabled = hasIncomingRequests;
 
