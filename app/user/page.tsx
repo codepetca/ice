@@ -630,6 +630,17 @@ function UserPageContent() {
     );
   }
 
+  // Shared avatar display component
+  const AvatarDisplay = ({ avatar, size = "large" }: { avatar: string; size?: "large" | "xlarge" }) => (
+    <div className="relative inline-block">
+      <div className={`${size === "xlarge" ? "text-9xl" : "text-7xl"} relative z-10`}>
+        {avatar}
+      </div>
+      {/* Subtle circular halo background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary-100/40 to-accent-100/40 rounded-full blur-2xl scale-75 -z-10" />
+    </div>
+  );
+
   // Browsing state
   if (state.matches("browsing")) {
     if (room && !room.phase1Active) {
@@ -643,8 +654,8 @@ function UserPageContent() {
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-md space-y-8 text-center mt-8"
           >
-            <div className="bg-gradient-to-br from-primary-50 to-accent-50 border-3 border-primary-300 rounded-3xl p-6">
-              <div className="text-7xl mb-4">{userAvatar}</div>
+            <div className="mb-6">
+              <AvatarDisplay avatar={userAvatar} size="large" />
             </div>
             <h2 className="text-3xl font-display font-bold text-gray-900 mb-4">
               You&apos;re in!
@@ -690,8 +701,8 @@ function UserPageContent() {
           animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-md space-y-8 text-center mt-8"
         >
-          <div>
-            <div className="text-9xl mb-6">{userAvatar}</div>
+          <div className="mb-6">
+            <AvatarDisplay avatar={userAvatar} size="xlarge" />
           </div>
 
           <div className="space-y-6">
