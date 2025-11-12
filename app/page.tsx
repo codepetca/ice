@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -164,6 +165,20 @@ export default function Home() {
               </motion.div>
             )}
           </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="flex justify-center mb-6 sm:mb-8"
+        >
+          <Link
+            href="/host"
+            className="text-base text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 py-4 cursor-pointer transition-colors no-underline"
+          >
+            Host
+          </Link>
         </motion.div>
       </PageContainer>
     </Screen>
