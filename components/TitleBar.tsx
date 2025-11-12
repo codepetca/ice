@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Settings, Sun, Moon } from "lucide-react";
+import { useDarkMode } from "@/lib/useDarkMode";
 
 interface TitleBarProps {
   title?: string;
@@ -12,33 +13,11 @@ interface TitleBarProps {
 
 export function TitleBar({ title, subtitle, showTitle = false }: TitleBarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [isDark, setIsDark] = useState(false);
+  const { isDark, toggleDarkMode: toggleDarkModeBase } = useDarkMode();
 
-  // Initialize dark mode
-  useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const shouldBeDark = stored === "dark" || (!stored && prefersDark);
-    setIsDark(shouldBeDark);
-
-    if (shouldBeDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, []);
-
+  // Wrapper to close settings menu when toggling dark mode
   const toggleDarkMode = () => {
-    const newDarkMode = !isDark;
-    setIsDark(newDarkMode);
-
-    if (newDarkMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+    toggleDarkModeBase();
     setSettingsOpen(false);
   };
 

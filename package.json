@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "clear-db": "npx convex run dev:clearAllData"
+    "clear-db": "npx convex run dev:clearAllData",
+    "deploy:convex": "npx convex deploy --yes",
+    "deploy:prod": "npm run deploy:convex && npm run build"
   },
   "dependencies": {
     "@xstate/react": "^4.1.0",

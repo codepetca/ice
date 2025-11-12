@@ -1,5 +1,15 @@
 # Meet & Reflect — Interaction Flow
 
+> **⚠️ HISTORICAL DOCUMENT**: This is the original design specification. The current implementation differs in several key areas. See **[CLAUDE.md](./CLAUDE.md)** for accurate documentation of the actual implementation.
+>
+> **Key Differences**:
+> - Current: Request/accept groups (2-4 members) vs Original: Mutual code entry pairs
+> - Current: "Would you rather?" A/B questions vs Original: Numeric questions
+> - Current: User/Host terminology vs Original: Student/Teacher
+> - Current: 4-letter room codes vs Original: 6-digit class codes
+> - Current: Emoji avatars vs Original: Names
+> - Current: Self-paced groups vs Original: Enforced talking phase timers
+
 A concise, implementation-ready flow for a low‑friction, face‑to‑face icebreaker with a class‑wide summary game.
 
 ---

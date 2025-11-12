@@ -52,20 +52,61 @@ function seededShuffle<T>(array: T[], seed: number): T[] {
   return shuffled;
 }
 
-// Select a question for this group, avoiding recent questions for all members
+/**
+ * Selects a question for a group while avoiding recent repeats
+ *
+ * Algorithm:
+ * 1. For each member, queries all 4 user slots (user1-4) to find their last 3 groups
+ * 2. Collects all question IDs from those recent groups
+ * 3. Filters active questions to exclude recent ones
+ * 4. Uses deterministic daily shuffle (seeded by current date) for consistent rotation
+ * 5. Returns first question from shuffled pool
+ *
+ * @param ctx - Convex query context
+ * @param memberIds - Array of user IDs in the group
+ * @returns Selected question document with text, optionA, optionB, followUp
+ * @throws Error if no questions are available in the database
+ */
 async function selectQuestion(ctx: any, memberIds: string[]): Promise<any> {
   // Get recent questions for all members (last 3 each)
   const recentQuestionIds = new Set<string>();
 
   for (const memberId of memberIds) {
-    // Find groups where this user was user1
+    // Find groups where this user was in any slot (user1-4)
+    // Check all 4 slots and collect the 3 most recent groups
+    const allUserGroups: any[] = [];
+
+    // Query each user slot index
     const user1Groups = await ctx.db
       .query("groups")
       .withIndex("by_user1", (q: any) => q.eq("user1Id", memberId))
-      .order("desc")
-      .take(3);
+      .collect();
+    allUserGroups.push(...user1Groups);
 
-    for (const group of user1Groups) {
+    const user2Groups = await ctx.db
+      .query("groups")
+      .withIndex("by_user2", (q: any) => q.eq("user2Id", memberId))
+      .collect();
+    allUserGroups.push(...user2Groups);
+
+    const user3Groups = await ctx.db
+      .query("groups")
+      .withIndex("by_user3", (q: any) => q.eq("user3Id", memberId))
+      .collect();
+    allUserGroups.push(...user3Groups);
+
+    const user4Groups = await ctx.db
+      .query("groups")
+      .withIndex("by_user4", (q: any) => q.eq("user4Id", memberId))
+      .collect();
+    allUserGroups.push(...user4Groups);
+
+    // Sort by creation time (most recent first) and take the last 3
+    const sortedGroups = allUserGroups
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 3);
+
+    for (const group of sortedGroups) {
       if (group.currentQuestionId) {
         recentQuestionIds.add(group.currentQuestionId);
       }
@@ -190,6 +231,23 @@ export const cancelRequestsForFullGroup = internalMutation({
 });
 
 // Send a group join request
+/**
+ * Sends a group join request from one user to another
+ *
+ * Features:
+ * - Validates room is active and not winding down
+ * - Prevents self-joining and duplicate requests
+ * - Implements spam prevention with exponential backoff (1s → 2s → 4s → 8s → 16s)
+ * - Enforces 3-second cooldown after canceling a request
+ * - Auto-accepts if mutual request exists (both users requested each other)
+ * - Checks target group isn't full before allowing request
+ * - Updates user statuses and creates pending request with 30-second expiration
+ *
+ * @param args.userId - ID of user sending the request
+ * @param args.targetId - ID of user being requested
+ * @returns Success status and request details (or pairing details if auto-accepted)
+ * @throws Error for validation failures, spam prevention, or room/user issues
+ */
 export const sendGroupRequest = mutation({
   args: {
     userId: v.id("users"),
@@ -498,6 +556,22 @@ async function getGroupMembers(ctx: any, group: any) {
 }
 
 // Accept a group request
+/**
+ * Accepts a group join request
+ *
+ * Logic:
+ * - If acceptor has no group and requester has no group: Creates new 2-person group
+ * - If acceptor has group and requester doesn't: Adds requester to acceptor's group
+ * - If acceptor has no group and requester has group: Adds acceptor to requester's group
+ * - Validates group size limits before adding members
+ * - Selects a question for new/updated group
+ * - Resets spam prevention backoff levels for both users on success
+ *
+ * @param args.userId - ID of user accepting the request (target)
+ * @param args.requestId - ID of the group request being accepted
+ * @returns Group details including members and question, or error information
+ * @throws Error if request invalid, expired, room inactive, or group full
+ */
 export const acceptGroupRequest = mutation({
   args: {
     userId: v.id("users"),
@@ -826,6 +900,20 @@ export const submitAnswer = mutation({
 });
 
 // Complete the group session
+/**
+ * Marks a group as completed and resets all members to available status
+ *
+ * Actions:
+ * - Sets group status to "completed" with timestamp
+ * - Clears currentGroupId from all members (user1-4)
+ * - Resets all members' status to "available"
+ * - Resets spam prevention backoff levels to 0 for all members
+ * - Members can immediately join new groups after completion
+ *
+ * @param args.userId - ID of user completing the group (for validation)
+ * @param args.groupId - ID of group to mark as completed
+ * @throws Error if group not found
+ */
 export const completeGroup = mutation({
   args: {
     userId: v.id("users"),

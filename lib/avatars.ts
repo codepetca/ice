@@ -1,4 +1,4 @@
-// Pool of fun, recognizable emojis for student avatars
+// Pool of fun, recognizable emojis for user avatars
 export const AVATAR_POOL = [
   // Animals - Mammals
   "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯",

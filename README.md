@@ -1,22 +1,31 @@
 # Ice - Classroom Icebreaker
 
-A low-friction, face-to-face icebreaker application for classrooms. Students pair up using 2-digit codes, answer questions about themselves, and have real conversations while devices fade into the background.
+A low-friction, face-to-face icebreaker application for classrooms. Users form groups of 2-4 using a request/accept system, answer "Would you rather?" questions, and have real conversations while devices fade into the background.
 
 ## Features
 
-### Phase 1 (MVP - Current Implementation)
-- **Student Pairing**: Students get unique 2-digit codes and connect with mutual acknowledgement
-- **Question System**: Paired students receive the same numeric question and share answers
-- **Talking Phase**: Screens dim to encourage face-to-face conversation
-- **State Machine**: 6-state flow from pairing → question → talking → wrap-up → repeat
-- **Teacher Dashboard**: Create classes, start/stop sessions, view live stats
-- **Projector Display**: Large-screen real-time view of class activity
+### Phase 1 (Group Formation) ✅ Complete
+- **Avatar Identity**: Users select emoji avatars and get unique 2-digit codes (10-99)
+- **Group Formation**: Request/accept system for 2-4 member groups with spam prevention
+- **Question System**: Groups receive the same A/B "Would you rather?" question
+- **Self-paced**: Groups complete conversations at their own pace
+- **State Machine**: 8-state XState flow with session persistence
+- **Host Dashboard**: Create rooms, start/stop Phase 1, adjust time, view live stats
+- **Projector Display**: Large-screen real-time view of room activity
+- **Dark Mode**: Full dark mode support across all pages
+
+### Phase 2 (Slideshow Game) ✅ Complete
+- **Auto-generation**: Creates slideshow from Phase 1 data (≥60% response threshold)
+- **Animated Reveals**: 6-second race effect showing percentage breakdowns
+- **Optional Voting**: Users can vote on which option they think was more popular
+- **Leaderboard**: Top-5 scoring users at game end
+- **Manual Navigation**: Host controls forward/backward through slides
 
 ## Tech Stack
 
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS
 - **Backend**: Convex (real-time database and functions)
-- **State Management**: XState (student flow state machine)
+- **State Management**: XState (user flow state machine)
 - **Animations**: Framer Motion
 - **UI Libraries**: canvas-confetti
 
@@ -54,102 +63,124 @@ npm run dev
 
 4. **Open your browser**:
 - Landing page: http://localhost:3000
-- Teacher view: http://localhost:3000/teacher
+- Host view: http://localhost:3000/host
+- User view: http://localhost:3000/user
 - Projector view: http://localhost:3000/projector
 
 ## Usage
 
-### For Teachers
+### For Hosts (Teachers)
 
-1. Go to http://localhost:3000 and click "Create new session"
-2. Enter class name and duration (e.g., 10 minutes)
-3. Share the **4-digit class code** with students
-4. Save your **4-digit PIN** (needed to control the class)
-5. Click "Start Phase 1" when ready
-6. Monitor active pairs and completed conversations in real-time
+1. Go to http://localhost:3000/host
+2. Click "Create New Room"
+3. Enter room name and configure max group size (2-4 members, default 4)
+4. Share the **4-letter room code** (e.g., "ABCD") with users
+5. Save your **4-digit PIN** (needed to control the room)
+6. Click "Start Phase 1" when ready
+7. Monitor active groups and completed conversations in real-time
+8. After Phase 1 ends, preview and start the Phase 2 slideshow game
 
-### For Students
+### For Users (Students)
 
 1. Go to http://localhost:3000 (landing page)
-2. Enter the 4-digit class code using the keypad
-3. Enter your name when prompted
+2. Enter the 4-letter room code (e.g., "ABCD")
+3. Select an emoji avatar from 3 options
 4. You'll receive a unique **2-digit code** (e.g., "42")
-5. Find a partner and exchange codes
-6. Enter your partner's code
-7. Both students answer the question that appears
-7. Talk face-to-face about your answers
-8. Click "Done Talking" → "Meet Someone New" to pair again
+5. Browse available users and send a join request to someone
+6. Wait for acceptance or accept incoming requests
+7. Answer the "Would you rather?" A/B question with your group
+8. Talk face-to-face about your answers
+9. Click "Complete Group" when done to meet new people
+10. After Phase 1 ends, optionally vote during the Phase 2 slideshow
 
 ### For Projector Display
 
 1. Go to http://localhost:3000/projector
-2. Enter the 4-digit class code using the keypad
+2. Enter the 4-letter room code (e.g., "ABCD")
 3. Display shows:
-   - Class name and code
-   - Active/Not Started status
-   - Timer countdown (when active)
-   - Number of students, active pairs, completed pairs
+   - **Phase 1**: Room name, status badges, countdown timer, user count, active/completed groups
+   - **Phase 2**: Synchronized slideshow with animated percentage reveals
 
 ## Project Structure
 
 ```
 ice/
 ├── app/
-│   ├── page.tsx              # Landing page with 4-digit code entry
-│   ├── student/page.tsx      # Student view with 6-state flow
-│   ├── teacher/page.tsx      # Teacher dashboard
-│   ├── projector/page.tsx    # Projector display
-│   └── ConvexClientProvider.tsx
+│   ├── page.tsx              # Landing page with 4-letter code entry
+│   ├── user/page.tsx         # User view with 8-state XState flow
+│   ├── host/page.tsx         # Host dashboard with Phase 1/2 controls
+│   ├── projector/page.tsx    # Projector display (Phase 1 stats + Phase 2 slideshow)
+│   └── ConvexClientProvider.tsx # Providers (Convex, Toast, ConfirmDialog)
 ├── components/
-│   └── Keypad.tsx            # Reusable numeric keypad
+│   ├── Keypad.tsx            # Reusable 4-letter code entry
+│   ├── SlideshowQuestion.tsx # Phase 2 slideshow with animated reveals
+│   ├── RequestBanner.tsx     # Join request UI
+│   ├── Toast.tsx             # Toast notification system
+│   ├── ConfirmDialog.tsx     # Confirmation dialog provider
+│   └── LoadingSpinner.tsx    # Loading indicator
 ├── convex/
-│   ├── schema.ts             # Database schema
-│   ├── classes.ts            # Class management
-│   ├── students.ts           # Student join/lookup
-│   ├── pairing.ts            # Pairing logic & mutations
-│   └── questions.ts          # Question management
+│   ├── schema.ts             # 10-table database schema
+│   ├── rooms.ts              # Room management
+│   ├── users.ts              # User join/lookup
+│   ├── groups.ts             # Group formation, questions, answers
+│   ├── questions.ts          # Question bank management
+│   ├── games.ts              # Phase 2 game generation & voting
+│   ├── crons.ts              # Cleanup jobs
+│   └── testData.ts           # Test data generators
 └── lib/
-    └── studentStateMachine.ts # XState state machine
+    ├── userStateMachine.ts   # XState state machine (8 states)
+    └── avatars.ts            # 200+ emoji avatars
 ```
 
 ## Key Design Decisions
 
 ### Simplified Entry Flow
-- **Landing page**: Minimal 4-digit code entry with numeric keypad
-- **Auto-advance**: Automatically navigates when 4 digits are entered
+- **Landing page**: Minimal 4-letter code entry (uppercase letters)
+- **Auto-advance**: Automatically navigates when 4 letters are entered
 - **No buttons**: One-tap entry reduces friction
 
-### Pairing System
-- **Mutual acknowledgement**: Both students must enter each other's code
-- **Duplicate prevention**: Students can't pair with the same person twice
-- **Canonical pair key**: `min(code1, code2)-max(code1, code2)` ensures uniqueness
+### Group Formation
+- **Request/accept system**: Browse available users and send join requests
+- **Flexible group sizes**: 2-4 members (configurable per room, default 4)
+- **Spam prevention**: Exponential backoff (1s → 2s → 4s → 8s → 16s) between requests
+- **Mutual requests**: If two users request each other, auto-accepted
+- **Request expiration**: 30-second timeout on pending requests
 
-### Question Delivery
-- Same question delivered to both students in a pair
-- Avoids last 3 questions per student to prevent repeats
-- 10 sample questions across categories (wellness, habits, hobbies, etc.)
+### Avatar Identity
+- **Emoji-based**: 200+ emoji avatars for playful, anonymous identity
+- **Random selection**: Users pick from 3 randomly presented options
+- **2-digit codes**: Each user gets unique code (10-99) for easy identification
+
+### Question System
+- **"Would you rather?" format**: A/B choice questions for easy answering
+- **Same question per group**: All group members see the same question
+- **Rotation tracking**: Avoids last 3 questions per user to prevent repeats
+- **35 pre-seeded questions**: Across multiple categories
+- **Follow-up prompts**: Seed face-to-face conversations
 
 ### State Machine
-Student flow: `waiting_for_partner` → `paired_intro` → `question_active` → `talking_phase` → `wrap_up` → repeat
+User flow: `not_joined` → `browsing` → `waiting_for_acceptance` → `question_active` → `session_locked` → Phase 2 states
 
 ### Real-time Sync
 Convex handles all real-time updates automatically:
-- Pairing requests
+- Group requests and acceptances
+- Question delivery
 - Answer submissions
-- Class stats
-- Session locks
+- Room stats
+- Phase 1/2 transitions
+- Slideshow synchronization
 
 ## Sample Questions
 
-The app comes pre-seeded with 10 questions:
-- How many hours did you sleep last night?
-- How many minutes of screen time per day?
-- How many cups of coffee/tea per day?
-- How many books read in the past year?
-- How many countries visited?
-- And 5 more...
+The app comes pre-seeded with 35 "Would you rather?" questions:
+- Would you rather have the ability to fly OR be invisible?
+- Would you rather explore space OR the deep ocean?
+- Would you rather read minds OR see the future?
+- Would you rather live in the mountains OR by the beach?
+- Would you rather have more time OR more money?
+- And 30 more...
 
-Teachers can manage questions through the Convex dashboard.
+Hosts can manage questions through the Convex dashboard.
 
 ## Development Commands
 
@@ -163,13 +194,47 @@ npx convex dev       # Start Convex dev server
 npx convex dashboard # Open Convex dashboard
 ```
 
-## Future Enhancements (Phase 2)
+## Deployment to Production
 
-- **Summary Game**: A/B voting game using aggregated data from Phase 1
-- **Question Management UI**: Teacher interface to add/edit questions
-- **QR Code Pairing**: Scan partner's code instead of typing
+### Important: Convex and Next.js Deploy Separately!
+
+When deploying to production (e.g., Vercel), you need to deploy both your Convex backend and Next.js frontend:
+
+**1. Deploy Convex Functions First:**
+```bash
+npm run deploy:convex
+# or manually: npx convex deploy --yes
+```
+
+This pushes your Convex functions to your production Convex deployment. Your production Convex URL will be something like `https://your-deployment.convex.cloud`.
+
+**2. Set Environment Variables in Vercel:**
+- Go to your Vercel project → Settings → Environment Variables
+- Add `NEXT_PUBLIC_CONVEX_URL` with your **production** Convex URL (not the dev URL!)
+- Make sure it's enabled for the **Production** environment
+
+**3. Deploy Next.js to Vercel:**
+- Push to your main branch (if auto-deploy is enabled), or
+- Manually trigger a deployment from the Vercel dashboard
+
+**Common Deployment Issue:**
+If you get errors like `[CONVEX Q(functionName)] Server Error`, it usually means:
+- You forgot to run `npm run deploy:convex` after making changes to Convex functions
+- Your Vercel environment variable is pointing to the dev URL instead of prod URL
+
+**Quick Deploy Script:**
+```bash
+npm run deploy:prod  # Deploys Convex, then builds Next.js
+```
+
+## Future Enhancements
+
+- **Question Management UI**: Host interface to add/edit/disable questions in-app
+- **QR Code Joining**: Scan code instead of typing 4 letters
 - **Advanced Analytics**: Export CSV of aggregates, category breakdowns
-- **Multi-session Support**: Track classes over time
+- **Multi-session Support**: Track rooms over time with history
+- **Custom Branding**: Configurable themes and room backgrounds
+- **Mobile App**: Native iOS/Android apps for better performance
 
 ## Troubleshooting
 
@@ -178,15 +243,22 @@ npx convex dashboard # Open Convex dashboard
 - Check that `.env.local` has `NEXT_PUBLIC_CONVEX_URL` set
 - Restart the Next.js dev server after Convex initialization
 
-### Students can't join
-- Verify Phase 1 is "Active" in teacher dashboard
-- Check that class code is entered correctly (6 digits)
+### Users can't join
+- Verify Phase 1 is "Active" in host dashboard
+- Check that room code is entered correctly (4 letters, uppercase)
 - Ensure Convex dev server is running
+- Check that room hasn't expired (48-hour TTL)
 
-### Pairing not working
-- Both students must enter each other's code
-- Students can't pair with themselves
-- Students can't pair with someone they've already met
+### Group formation not working
+- User must send request and wait for acceptance
+- Can't request to join full groups (check maxGroupSize setting)
+- Spam prevention may be active (exponential backoff between requests)
+- Requests expire after 30 seconds
+
+### Phase 2 not generating
+- Ensure Phase 1 had sufficient participation (≥60% response rate per question)
+- Game is auto-generated when Phase 1 stops
+- Check Convex dashboard logs for any errors
 
 ## License
 

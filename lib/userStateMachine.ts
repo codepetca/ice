@@ -19,7 +19,6 @@ export type UserContext = {
     followUp: string;
   } | null;
   myAnswer: string | null;
-  talkingDuration: number; // seconds
   pendingRequestId: string | null;
   // Phase 2 fields
   gameId: string | null;
@@ -35,8 +34,6 @@ export type UserEvents =
   | { type: "CANCEL_REQUEST" }
   | { type: "JOINED_GROUP"; groupId: string; members: any[]; question: any }
   | { type: "SUBMIT_ANSWER"; value: string }
-  | { type: "ALL_ANSWERED" }
-  | { type: "TALKING_COMPLETE" }
   | { type: "LEAVE_GROUP" }
   | { type: "SESSION_LOCKED" }
   | { type: "START_PHASE2"; gameId: string; roundNumber: number; questionText: string }
@@ -128,7 +125,6 @@ export const userMachine = setup({
     groupMembers: [],
     question: null,
     myAnswer: null,
-    talkingDuration: 45, // 45 seconds default
     pendingRequestId: null,
     // Phase 2 context
     gameId: null,
@@ -177,22 +173,6 @@ export const userMachine = setup({
         SUBMIT_ANSWER: {
           actions: "setAnswer",
         },
-        ALL_ANSWERED: "talking_phase",
-        LEAVE_GROUP: {
-          target: "browsing",
-          actions: "clearGroup",
-        },
-        SESSION_LOCKED: "session_locked",
-      },
-    },
-    talking_phase: {
-      on: {
-        TALKING_COMPLETE: "wrap_up",
-        SESSION_LOCKED: "session_locked",
-      },
-    },
-    wrap_up: {
-      on: {
         LEAVE_GROUP: {
           target: "browsing",
           actions: "clearGroup",

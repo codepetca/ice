@@ -228,7 +228,7 @@ export default function ProjectorPage() {
               {stats?.totalUsers || 0}
             </div>
             <div className="text-3xl text-accent-200 uppercase tracking-wider">
-              Students
+              Users
             </div>
           </div>
 
@@ -260,10 +260,10 @@ export default function ProjectorPage() {
             className="text-center space-y-6 pt-8"
           >
             <div className="text-4xl font-semibold text-accent-200">
-              Waiting for teacher to start Phase 1...
+              Waiting for host to start Phase 1...
             </div>
             <div className="text-2xl text-accent-300">
-              Students can join at <span className="font-mono">/student</span>
+              Users can join at <span className="font-mono">/user</span>
             </div>
           </motion.div>
         )}
@@ -276,7 +276,7 @@ export default function ProjectorPage() {
             className="text-center space-y-4 pt-8"
           >
             <div className="text-3xl font-semibold text-accent-200">
-              💬 Students are connecting and talking!
+              💬 Users are connecting and talking!
             </div>
           </motion.div>
         )}
