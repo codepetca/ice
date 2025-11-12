@@ -172,7 +172,7 @@ export default function Home() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="pb-6 sm:pb-8 text-center"
+        className="mt-auto pb-10 sm:pb-16 text-center"
       >
         <Link
           href="/host"
