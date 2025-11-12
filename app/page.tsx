@@ -115,74 +115,72 @@ export default function Home() {
   };
 
   return (
-    <Screen as="main" padding="compact">
-      <div className="flex flex-col justify-between min-h-full w-full">
-        <div className="flex-grow flex flex-col items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-md space-y-10 sm:space-y-12"
-          >
-            <div className="text-center space-y-1">
-              <h1 className="text-4xl sm:text-6xl font-display font-bold text-foreground tracking-tight">
-                Ice
-              </h1>
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-center text-xs sm:text-sm font-sans text-muted-foreground uppercase tracking-[0.3em]">
-                Enter room code
-              </p>
-              <div className="flex justify-center gap-2 sm:gap-4">
-                {[0, 1, 2, 3].map((index) => (
-                  <input
-                    key={index}
-                    ref={(el) => {
-                      inputRefs.current[index] = el;
-                    }}
-                    type="text"
-                    value={code[index]}
-                    onChange={(e) => handleInputChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    onPaste={handlePaste}
-                    maxLength={1}
-                    inputMode="text"
-                    autoComplete="one-time-code"
-                    disabled={
-                      validating || (fullCode.length === 4 && room === undefined)
-                    }
-                    className="w-16 h-20 sm:w-20 sm:h-24 text-center text-4xl sm:text-5xl font-display font-bold border-2 border-border rounded-2xl bg-primary text-primary-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/30 transition-all uppercase disabled:opacity-50"
-                  />
-                ))}
-              </div>
-
-              {(validating || (fullCode.length === 4 && room === undefined)) && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex justify-center pt-2"
-                >
-                  <LoadingSpinner size="sm" />
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
-        </div>
-
+    <Screen as="main" padding="compact" innerClassName="justify-between">
+      <div className="flex flex-col items-center justify-center flex-1">
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="pb-10 sm:pb-16 text-center"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md space-y-10 sm:space-y-12"
         >
-          <Link
-            href="/host"
-            className="text-base text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 py-4 cursor-pointer transition-colors no-underline"
-          >
-            Host
-          </Link>
+          <div className="text-center space-y-1">
+            <h1 className="text-4xl sm:text-6xl font-display font-bold text-foreground tracking-tight">
+              Ice
+            </h1>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-center text-xs sm:text-sm font-sans text-muted-foreground uppercase tracking-[0.3em]">
+              Enter room code
+            </p>
+            <div className="flex justify-center gap-2 sm:gap-4">
+              {[0, 1, 2, 3].map((index) => (
+                <input
+                  key={index}
+                  ref={(el) => {
+                    inputRefs.current[index] = el;
+                  }}
+                  type="text"
+                  value={code[index]}
+                  onChange={(e) => handleInputChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  onPaste={handlePaste}
+                  maxLength={1}
+                  inputMode="text"
+                  autoComplete="one-time-code"
+                  disabled={
+                    validating || (fullCode.length === 4 && room === undefined)
+                  }
+                  className="w-16 h-20 sm:w-20 sm:h-24 text-center text-4xl sm:text-5xl font-display font-bold border-2 border-border rounded-2xl bg-primary text-primary-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/30 transition-all uppercase disabled:opacity-50"
+                />
+              ))}
+            </div>
+
+            {(validating || (fullCode.length === 4 && room === undefined)) && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex justify-center pt-2"
+              >
+                <LoadingSpinner size="sm" />
+              </motion.div>
+            )}
+          </div>
         </motion.div>
       </div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="pb-10 sm:pb-16 text-center"
+      >
+        <Link
+          href="/host"
+          className="text-base text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 py-4 cursor-pointer transition-colors no-underline"
+        >
+          Host
+        </Link>
+      </motion.div>
     </Screen>
   );
 }
