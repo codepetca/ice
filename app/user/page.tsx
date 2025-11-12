@@ -636,22 +636,22 @@ function UserPageContent() {
       const userAvatar = state.context.avatar || selectedAvatar;
 
       return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+        <main className="flex min-h-screen flex-col items-center p-8 bg-background">
           <TitleBar />
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-md space-y-8 text-center"
+            className="w-full max-w-md space-y-8 text-center mt-8"
           >
+            <div className="bg-gradient-to-br from-primary-50 to-accent-50 border-3 border-primary-300 rounded-3xl p-6">
+              <div className="text-7xl mb-4">{userAvatar}</div>
+            </div>
             <h2 className="text-3xl font-display font-bold text-gray-900 mb-4">
               You&apos;re in!
             </h2>
             <p className="text-xl font-sans text-gray-600 mb-4">
               Waiting for host to start the session...
             </p>
-            <div className="bg-gradient-to-br from-primary-50 to-accent-50 border-3 border-primary-300 rounded-3xl p-6 mt-8">
-              <div className="text-7xl mb-4">{userAvatar}</div>
-            </div>
           </motion.div>
         </main>
       );
@@ -660,7 +660,7 @@ function UserPageContent() {
     const userAvatar = state.context.avatar || selectedAvatar;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+      <main className="flex min-h-screen flex-col items-center p-8 bg-background">
         <TitleBar />
         {/* Incoming requests banner */}
         {incomingRequests && incomingRequests.length > 0 && (
@@ -688,7 +688,7 @@ function UserPageContent() {
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md space-y-8 text-center"
+          className="w-full max-w-md space-y-8 text-center mt-8"
         >
           <div>
             <div className="text-9xl mb-6">{userAvatar}</div>
