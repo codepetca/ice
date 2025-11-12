@@ -34,35 +34,11 @@ export function SlideshowQuestion({
   // Local state to show percentages after animation completes
   const [showPercentages, setShowPercentages] = useState(isRevealed);
 
-  // Reset state when round number changes or when transitioning to unrevealed
+  // Reset state when round number changes or when isRevealed changes
   useEffect(() => {
-    // Always reset to false when round changes, unless explicitly revealed
-    if (isRevealed) {
-      setShowPercentages(true);
-    } else {
-      setShowPercentages(false);
-    }
+    // Sync showPercentages with isRevealed prop (host controls this now)
+    setShowPercentages(isRevealed);
   }, [roundNumber, isRevealed]);
-
-  // Auto-show percentages after 6 second animation if not already revealed
-  // Never trigger during preview mode
-  useEffect(() => {
-    if (isRevealed || isPreview) {
-      // Don't start timer if already revealed or in preview mode
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setShowPercentages(true);
-      // Notify parent that reveal is complete (save to database)
-      // Only call if not in preview mode
-      if (onRevealComplete && !isPreview) {
-        onRevealComplete();
-      }
-    }, 6000); // Match the animation duration
-
-    return () => clearTimeout(timer);
-  }, [isRevealed, isPreview, roundNumber, onRevealComplete]);
   // Calculate the race target: 90% of the minimum percentage
   const minPercent = Math.min(percentA, percentB);
   const raceTarget = minPercent * 0.9 / 100; // Convert to 0-1 scale for scaleX

@@ -123,6 +123,13 @@ export default defineSchema({
     totalRounds: v.number(), // Total number of slides/questions
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
+    // Slideshow timer state (host-driven)
+    stage: v.optional(v.union(
+      v.literal("pre_reveal"),  // 6s: showing question only
+      v.literal("revealed")     // 6s: showing revealed percentages
+    )),
+    stageStartedAt: v.optional(v.number()), // When current stage began
+    isFinished: v.optional(v.boolean()), // True when slideshow completes
   })
     .index("by_room", ["roomId"])
     .index("by_status", ["status"]),
