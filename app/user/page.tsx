@@ -43,6 +43,7 @@ function UserPageContent() {
 
   // Phase 2 mutations
   const submitVote = useMutation(api.games.submitVote);
+  const leaveRoom = useMutation(api.users.leaveRoom);
 
   const validateUserSession = useQuery(
     api.users.validateUserSession,
@@ -563,6 +564,21 @@ function UserPageContent() {
     }
   };
 
+  // Leave room handler
+  const handleLeaveRoom = async () => {
+    if (!state.context.userId) return;
+
+    try {
+      await leaveRoom({ userId: state.context.userId as Id<"users"> });
+      // Clear local storage
+      localStorage.removeItem(`ice_user_${roomCode}`);
+      // Navigate to landing page
+      router.push("/");
+    } catch (error: any) {
+      showToast(error.message, "error");
+    }
+  };
+
   // Not joined state
   if (state.matches("not_joined")) {
     if (checkingSession) {
@@ -1030,7 +1046,7 @@ function UserPageContent() {
     const totalRounds = gameState?.game?.totalRounds || 0;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background overflow-hidden">
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 pb-20 bg-background overflow-hidden">
         <TitleBar />
         <AnimatePresence mode="wait">
           <motion.div
@@ -1060,6 +1076,18 @@ function UserPageContent() {
 
           </motion.div>
         </AnimatePresence>
+
+        {/* Leave button - fixed at bottom */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          onClick={handleLeaveRoom}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg"
+          aria-label="Leave room"
+        >
+          Leave
+        </motion.button>
       </main>
     );
   }
@@ -1067,7 +1095,7 @@ function UserPageContent() {
   // Phase 2: Complete state - just show session ended
   if (state.matches("phase2_complete")) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 pb-20 bg-gradient-to-b from-gray-50 to-white">
         <TitleBar />
         <motion.div
           initial={{ opacity: 0 }}
@@ -1082,6 +1110,18 @@ function UserPageContent() {
             Thanks for participating!
           </p>
         </motion.div>
+
+        {/* Leave button - fixed at bottom */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          onClick={handleLeaveRoom}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg"
+          aria-label="Leave room"
+        >
+          Leave
+        </motion.button>
       </main>
     );
   }

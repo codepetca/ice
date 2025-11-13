@@ -281,3 +281,60 @@ export const rejoinRoom = mutation({
     };
   },
 });
+
+export const leaveRoom = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Check if user exists
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    // If user is in a group, remove them from it
+    if (user.currentGroupId) {
+      const group = await ctx.db.get(user.currentGroupId);
+      if (group && group.status !== "completed") {
+        // Mark the group as completed if user leaves
+        await ctx.db.patch(user.currentGroupId, {
+          status: "completed",
+          completedAt: Date.now(),
+        });
+      }
+    }
+
+    // Cancel any pending requests
+    const outgoingRequests = await ctx.db
+      .query("groupRequests")
+      .withIndex("by_room_and_requester", (q) =>
+        q.eq("roomId", user.roomId).eq("requesterId", args.userId)
+      )
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .collect();
+
+    for (const request of outgoingRequests) {
+      await ctx.db.patch(request._id, {
+        status: "cancelled",
+      });
+    }
+
+    const incomingRequests = await ctx.db
+      .query("groupRequests")
+      .withIndex("by_room_and_target", (q) =>
+        q.eq("roomId", user.roomId).eq("targetId", args.userId)
+      )
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .collect();
+
+    for (const request of incomingRequests) {
+      await ctx.db.patch(request._id, {
+        status: "cancelled",
+      });
+    }
+
+    // Delete the user
+    await ctx.db.delete(args.userId);
+
+    return { success: true };
+  },
+});
