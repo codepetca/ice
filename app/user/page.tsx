@@ -851,26 +851,26 @@ function UserPageContent() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("A")}
-                className={`rounded-3xl flex flex-row items-stretch p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
+                className={`rounded-3xl flex flex-row items-stretch p-5 sm:p-7 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "A" ? "ring-4 ring-primary-300" : ""
                 }`}
               >
-                {/* A label on left middle */}
-                <div className="flex items-center justify-center pr-3 sm:pr-4">
+                {/* A label on left - narrow column */}
+                <div className="flex items-center justify-center pr-2 sm:pr-3">
                   <div className="text-4xl sm:text-5xl font-bold">A</div>
                 </div>
                 
-                {/* Right side: text at top, avatars at bottom */}
-                <div className="flex-1 flex flex-col justify-between py-1">
-                  {/* Option text at top */}
-                  <div className="flex items-start justify-center pt-2">
+                {/* Right side: 2 rows - text top, avatars bottom */}
+                <div className="flex-1 flex flex-col justify-between">
+                  {/* Text row - centered in cell */}
+                  <div className="flex-1 flex items-center justify-center">
                     <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
                       {question?.optionA}
                     </div>
                   </div>
                   
-                  {/* Avatar placeholder at bottom - fixed height to prevent layout shift */}
-                  <div className="min-h-[56px] sm:min-h-[70px] flex gap-1 flex-wrap justify-center items-end pb-1">
+                  {/* Avatar row - centered in cell, fixed height to prevent layout shift */}
+                  <div className="min-h-[56px] sm:min-h-[70px] flex gap-1 flex-wrap justify-center items-center">
                     {membersChosenA.length > 0 ? (
                       membersChosenA.map((member: any) => (
                         <div key={member.id} className="text-4xl sm:text-6xl">
@@ -888,26 +888,26 @@ function UserPageContent() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("B")}
-                className={`rounded-3xl flex flex-row items-stretch p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
+                className={`rounded-3xl flex flex-row items-stretch p-5 sm:p-7 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "B" ? "ring-4 ring-blue-300" : ""
                 }`}
               >
-                {/* B label on left middle */}
-                <div className="flex items-center justify-center pr-3 sm:pr-4">
+                {/* B label on left - narrow column */}
+                <div className="flex items-center justify-center pr-2 sm:pr-3">
                   <div className="text-4xl sm:text-5xl font-bold">B</div>
                 </div>
                 
-                {/* Right side: text at top, avatars at bottom */}
-                <div className="flex-1 flex flex-col justify-between py-1">
-                  {/* Option text at top */}
-                  <div className="flex items-start justify-center pt-2">
+                {/* Right side: 2 rows - text top, avatars bottom */}
+                <div className="flex-1 flex flex-col justify-between">
+                  {/* Text row - centered in cell */}
+                  <div className="flex-1 flex items-center justify-center">
                     <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
                       {question?.optionB}
                     </div>
                   </div>
                   
-                  {/* Avatar placeholder at bottom - fixed height to prevent layout shift */}
-                  <div className="min-h-[56px] sm:min-h-[70px] flex gap-1 flex-wrap justify-center items-end pb-1">
+                  {/* Avatar row - centered in cell, fixed height to prevent layout shift */}
+                  <div className="min-h-[56px] sm:min-h-[70px] flex gap-1 flex-wrap justify-center items-center">
                     {membersChosenB.length > 0 ? (
                       membersChosenB.map((member: any) => (
                         <div key={member.id} className="text-4xl sm:text-6xl">
