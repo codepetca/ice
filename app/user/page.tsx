@@ -851,64 +851,74 @@ function UserPageContent() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("A")}
-                className={`relative rounded-3xl flex flex-col items-center justify-between p-4 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
+                className={`rounded-3xl flex flex-row items-stretch p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "A" ? "ring-4 ring-primary-300" : ""
                 }`}
               >
-                {/* A label in top-left corner */}
-                <div className="absolute top-3 left-3 sm:top-4 sm:left-4 text-2xl sm:text-3xl font-bold">A</div>
-                
-                {/* Option text - centered with padding for top label */}
-                <div className="flex-1 flex items-center justify-center pt-6 sm:pt-8 pb-1 sm:pb-2">
-                  <div className="text-center leading-tight text-base sm:text-2xl px-2">
-                    {question?.optionA}
-                  </div>
+                {/* A label on left middle */}
+                <div className="flex items-center justify-center pr-3 sm:pr-4">
+                  <div className="text-4xl sm:text-5xl font-bold">A</div>
                 </div>
                 
-                {/* Avatar placeholder - fixed height to prevent layout shift */}
-                <div className="min-h-[48px] sm:min-h-[60px] flex gap-1 flex-wrap justify-center items-end">
-                  {membersChosenA.length > 0 ? (
-                    membersChosenA.map((member: any) => (
-                      <div key={member.id} className="text-3xl sm:text-5xl">
-                        {member.avatar}
-                      </div>
-                    ))
-                  ) : (
-                    // Invisible placeholder to maintain space
-                    <div className="h-[36px] sm:h-[60px]" aria-hidden="true"></div>
-                  )}
+                {/* Right side: text at top, avatars at bottom */}
+                <div className="flex-1 flex flex-col justify-between py-1">
+                  {/* Option text at top */}
+                  <div className="flex items-start justify-center pt-2">
+                    <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
+                      {question?.optionA}
+                    </div>
+                  </div>
+                  
+                  {/* Avatar placeholder at bottom - fixed height to prevent layout shift */}
+                  <div className="min-h-[56px] sm:min-h-[70px] flex gap-1 flex-wrap justify-center items-end pb-1">
+                    {membersChosenA.length > 0 ? (
+                      membersChosenA.map((member: any) => (
+                        <div key={member.id} className="text-4xl sm:text-6xl">
+                          {member.avatar}
+                        </div>
+                      ))
+                    ) : (
+                      // Invisible placeholder to maintain space
+                      <div className="h-[48px] sm:h-[64px]" aria-hidden="true"></div>
+                    )}
+                  </div>
                 </div>
               </motion.button>
 
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("B")}
-                className={`relative rounded-3xl flex flex-col items-center justify-between p-4 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
+                className={`rounded-3xl flex flex-row items-stretch p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "B" ? "ring-4 ring-blue-300" : ""
                 }`}
               >
-                {/* B label in top-left corner */}
-                <div className="absolute top-3 left-3 sm:top-4 sm:left-4 text-2xl sm:text-3xl font-bold">B</div>
-                
-                {/* Option text - centered with padding for top label */}
-                <div className="flex-1 flex items-center justify-center pt-6 sm:pt-8 pb-1 sm:pb-2">
-                  <div className="text-center leading-tight text-base sm:text-2xl px-2">
-                    {question?.optionB}
-                  </div>
+                {/* B label on left middle */}
+                <div className="flex items-center justify-center pr-3 sm:pr-4">
+                  <div className="text-4xl sm:text-5xl font-bold">B</div>
                 </div>
                 
-                {/* Avatar placeholder - fixed height to prevent layout shift */}
-                <div className="min-h-[48px] sm:min-h-[60px] flex gap-1 flex-wrap justify-center items-end">
-                  {membersChosenB.length > 0 ? (
-                    membersChosenB.map((member: any) => (
-                      <div key={member.id} className="text-3xl sm:text-5xl">
-                        {member.avatar}
-                      </div>
-                    ))
-                  ) : (
-                    // Invisible placeholder to maintain space
-                    <div className="h-[36px] sm:h-[60px]" aria-hidden="true"></div>
-                  )}
+                {/* Right side: text at top, avatars at bottom */}
+                <div className="flex-1 flex flex-col justify-between py-1">
+                  {/* Option text at top */}
+                  <div className="flex items-start justify-center pt-2">
+                    <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
+                      {question?.optionB}
+                    </div>
+                  </div>
+                  
+                  {/* Avatar placeholder at bottom - fixed height to prevent layout shift */}
+                  <div className="min-h-[56px] sm:min-h-[70px] flex gap-1 flex-wrap justify-center items-end pb-1">
+                    {membersChosenB.length > 0 ? (
+                      membersChosenB.map((member: any) => (
+                        <div key={member.id} className="text-4xl sm:text-6xl">
+                          {member.avatar}
+                        </div>
+                      ))
+                    ) : (
+                      // Invisible placeholder to maintain space
+                      <div className="h-[48px] sm:h-[64px]" aria-hidden="true"></div>
+                    )}
+                  </div>
                 </div>
               </motion.button>
             </div>
