@@ -626,7 +626,7 @@ function UserPageContent() {
                 className={`aspect-square rounded-3xl flex items-center justify-center text-7xl transition-all ${
                   selectedAvatar === avatar
                     ? "bg-primary text-primary-foreground shadow-glow ring-4 ring-primary-300"
-                    : "bg-white border-4 border-primary-200 hover:border-primary-400 hover:shadow-lg"
+                    : "bg-white dark:bg-gray-800 border-4 border-primary-200 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500 hover:shadow-lg"
                 }`}
               >
                 {avatar}
@@ -737,10 +737,10 @@ function UserPageContent() {
                             disabled={isDisabled}
                             className={`aspect-square rounded-2xl flex flex-col items-center justify-center text-6xl transition-all relative ${
                               isDisabled
-                                ? "bg-gray-100 border-4 border-gray-200 opacity-40 cursor-not-allowed"
+                                ? "bg-gray-100 dark:bg-gray-800 border-4 border-gray-200 dark:border-gray-700 opacity-40 cursor-not-allowed"
                                 : selectedUser === user.id
                                 ? "bg-primary text-primary-foreground shadow-xl ring-4 ring-primary-300"
-                                : "bg-white border-4 border-gray-200 hover:border-primary-300 hover:shadow-lg"
+                                : "bg-white dark:bg-gray-800 border-4 border-gray-200 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-lg"
                             }`}
                           >
                             {selectedUser === user.id ? (
@@ -748,8 +748,8 @@ function UserPageContent() {
                             ) : (
                               <>
                                 <div>{user.avatar}</div>
-                                {user.groupSize > 0 && (
-                                  <div className="text-xs mt-1 text-gray-600">
+                                 {user.groupSize > 0 && (
+                                  <div className="text-xs mt-1 text-gray-600 dark:text-gray-400">
                                     {user.groupSize}/{room?.maxGroupSize || 4}
                                   </div>
                                 )}
