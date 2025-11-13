@@ -810,7 +810,7 @@ function UserPageContent() {
     const canComplete = elapsedTime >= 60;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-yellow-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-3 sm:p-8 bg-gradient-to-b from-yellow-50 to-white">
         <TitleBar />
         {/* Show subtle banner for incoming requests during active session */}
         {incomingRequests && incomingRequests.length > 0 && (
@@ -838,44 +838,44 @@ function UserPageContent() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-2xl space-y-8"
+          className="w-full max-w-2xl space-y-3 sm:space-y-8"
         >
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900 mb-8">
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-8 leading-tight">
               {question?.text}
             </h2>
           </div>
 
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="space-y-3 sm:space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("A")}
-                className={`relative rounded-3xl flex flex-col items-center justify-between p-6 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[240px] sm:min-h-0 sm:aspect-square ${
+                className={`relative rounded-3xl flex flex-col items-center justify-between p-4 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "A" ? "ring-4 ring-primary-300" : ""
                 }`}
               >
                 {/* A label in top-left corner */}
-                <div className="absolute top-4 left-4 text-3xl font-bold">A</div>
+                <div className="absolute top-3 left-3 sm:top-4 sm:left-4 text-2xl sm:text-3xl font-bold">A</div>
                 
                 {/* Option text - centered with padding for top label */}
-                <div className="flex-1 flex items-center justify-center pt-8 pb-2">
-                  <div className="text-center leading-tight text-xl sm:text-2xl px-2">
+                <div className="flex-1 flex items-center justify-center pt-6 sm:pt-8 pb-1 sm:pb-2">
+                  <div className="text-center leading-tight text-base sm:text-2xl px-2">
                     {question?.optionA}
                   </div>
                 </div>
                 
                 {/* Avatar placeholder - fixed height to prevent layout shift */}
-                <div className="min-h-[60px] flex gap-1 flex-wrap justify-center items-end">
+                <div className="min-h-[48px] sm:min-h-[60px] flex gap-1 flex-wrap justify-center items-end">
                   {membersChosenA.length > 0 ? (
                     membersChosenA.map((member: any) => (
-                      <div key={member.id} className="text-4xl sm:text-5xl">
+                      <div key={member.id} className="text-3xl sm:text-5xl">
                         {member.avatar}
                       </div>
                     ))
                   ) : (
                     // Invisible placeholder to maintain space
-                    <div className="h-[48px] sm:h-[60px]" aria-hidden="true"></div>
+                    <div className="h-[36px] sm:h-[60px]" aria-hidden="true"></div>
                   )}
                 </div>
               </motion.button>
@@ -883,31 +883,31 @@ function UserPageContent() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("B")}
-                className={`relative rounded-3xl flex flex-col items-center justify-between p-6 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[240px] sm:min-h-0 sm:aspect-square ${
+                className={`relative rounded-3xl flex flex-col items-center justify-between p-4 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "B" ? "ring-4 ring-blue-300" : ""
                 }`}
               >
                 {/* B label in top-left corner */}
-                <div className="absolute top-4 left-4 text-3xl font-bold">B</div>
+                <div className="absolute top-3 left-3 sm:top-4 sm:left-4 text-2xl sm:text-3xl font-bold">B</div>
                 
                 {/* Option text - centered with padding for top label */}
-                <div className="flex-1 flex items-center justify-center pt-8 pb-2">
-                  <div className="text-center leading-tight text-xl sm:text-2xl px-2">
+                <div className="flex-1 flex items-center justify-center pt-6 sm:pt-8 pb-1 sm:pb-2">
+                  <div className="text-center leading-tight text-base sm:text-2xl px-2">
                     {question?.optionB}
                   </div>
                 </div>
                 
                 {/* Avatar placeholder - fixed height to prevent layout shift */}
-                <div className="min-h-[60px] flex gap-1 flex-wrap justify-center items-end">
+                <div className="min-h-[48px] sm:min-h-[60px] flex gap-1 flex-wrap justify-center items-end">
                   {membersChosenB.length > 0 ? (
                     membersChosenB.map((member: any) => (
-                      <div key={member.id} className="text-4xl sm:text-5xl">
+                      <div key={member.id} className="text-3xl sm:text-5xl">
                         {member.avatar}
                       </div>
                     ))
                   ) : (
                     // Invisible placeholder to maintain space
-                    <div className="h-[48px] sm:h-[60px]" aria-hidden="true"></div>
+                    <div className="h-[36px] sm:h-[60px]" aria-hidden="true"></div>
                   )}
                 </div>
               </motion.button>
@@ -921,11 +921,11 @@ function UserPageContent() {
                   initial={{ scale: 0.95 }}
                   animate={{ scale: [1, 1.02, 1] }}
                   transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                  className="relative w-full h-16 rounded-xl overflow-hidden ring-4 ring-orange-400 shadow-2xl"
+                  className="relative w-full h-12 sm:h-16 rounded-xl overflow-hidden ring-4 ring-orange-400 shadow-2xl"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-500" />
                   <div className="relative z-10 flex items-center justify-center h-full">
-                    <p className="text-2xl font-bold text-white drop-shadow-lg">
+                    <p className="text-lg sm:text-2xl font-bold text-white drop-shadow-lg">
                       ⏰ Session ending soon!
                     </p>
                   </div>
@@ -949,7 +949,7 @@ function UserPageContent() {
                     repeat: Infinity,
                     ease: "easeInOut"
                   } : {}}
-                  className={`relative w-full h-16 rounded-xl overflow-hidden transition-all ${
+                  className={`relative w-full h-12 sm:h-16 rounded-xl overflow-hidden transition-all ${
                     canComplete
                       ? "ring-4 ring-green-400 cursor-pointer shadow-2xl"
                       : "shadow-lg cursor-not-allowed"
@@ -989,7 +989,7 @@ function UserPageContent() {
                     animate={canComplete ? { scale: [1, 1.05, 1] } : {}}
                     transition={canComplete ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
                   >
-                    <p className="text-2xl font-bold text-white drop-shadow-lg">
+                    <p className="text-lg sm:text-2xl font-bold text-white drop-shadow-lg">
                       {canComplete ? "Done" : "Choose and discuss"}
                     </p>
                   </motion.div>
