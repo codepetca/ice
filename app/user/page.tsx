@@ -43,6 +43,7 @@ function UserPageContent() {
 
   // Phase 2 mutations
   const submitVote = useMutation(api.games.submitVote);
+  const leaveRoom = useMutation(api.users.leaveRoom);
 
   const validateUserSession = useQuery(
     api.users.validateUserSession,
@@ -563,6 +564,21 @@ function UserPageContent() {
     }
   };
 
+  // Leave room handler
+  const handleLeaveRoom = async () => {
+    if (!state.context.userId) return;
+
+    try {
+      await leaveRoom({ userId: state.context.userId as Id<"users"> });
+      // Clear local storage
+      localStorage.removeItem(`ice_user_${roomCode}`);
+      // Navigate to landing page
+      router.push("/");
+    } catch (error: any) {
+      showToast(error.message, "error");
+    }
+  };
+
   // Not joined state
   if (state.matches("not_joined")) {
     if (checkingSession) {
@@ -810,7 +826,7 @@ function UserPageContent() {
     const canComplete = elapsedTime >= 60;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-yellow-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-3 sm:p-8 bg-gradient-to-b from-yellow-50 to-white">
         <TitleBar />
         {/* Show subtle banner for incoming requests during active session */}
         {incomingRequests && incomingRequests.length > 0 && (
@@ -838,58 +854,88 @@ function UserPageContent() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-2xl space-y-8"
+          className="w-full max-w-2xl space-y-3 sm:space-y-8"
         >
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900 mb-8">
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-8 leading-tight">
               {question?.text}
             </h2>
           </div>
 
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="space-y-3 sm:space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("A")}
-                className={`sm:aspect-square rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition ${
+                className={`rounded-3xl flex flex-row items-stretch p-5 sm:p-7 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "A" ? "ring-4 ring-primary-300" : ""
                 }`}
               >
-                <div className="text-4xl mb-3">A</div>
-                <div className="text-center leading-tight mb-3">
-                  {question?.optionA}
+                {/* A label on left - narrow column */}
+                <div className="flex items-center justify-center pr-2 sm:pr-3">
+                  <div className="text-4xl sm:text-5xl font-bold">A</div>
                 </div>
-                {membersChosenA.length > 0 && (
-                  <div className="flex gap-1 mt-2 flex-wrap justify-center">
-                    {membersChosenA.map((member: any) => (
-                      <div key={member.id} className="text-5xl">
-                        {member.avatar}
-                      </div>
-                    ))}
+                
+                {/* Right side: 2 rows - text top, avatars bottom */}
+                <div className="flex-1 flex flex-col justify-between">
+                  {/* Text row - centered in cell */}
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
+                      {question?.optionA}
+                    </div>
                   </div>
-                )}
+                  
+                  {/* Avatar row - centered in cell, fixed height to prevent layout shift */}
+                  <div className="min-h-[56px] sm:min-h-[70px] flex gap-1 flex-wrap justify-center items-center">
+                    {membersChosenA.length > 0 ? (
+                      membersChosenA.map((member: any) => (
+                        <div key={member.id} className="text-4xl sm:text-6xl">
+                          {member.avatar}
+                        </div>
+                      ))
+                    ) : (
+                      // Invisible placeholder to maintain space
+                      <div className="h-[48px] sm:h-[64px]" aria-hidden="true"></div>
+                    )}
+                  </div>
+                </div>
               </motion.button>
 
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("B")}
-                className={`sm:aspect-square rounded-3xl flex flex-col items-center justify-center p-6 sm:p-8 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition ${
+                className={`rounded-3xl flex flex-row items-stretch p-5 sm:p-7 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[180px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "B" ? "ring-4 ring-blue-300" : ""
                 }`}
               >
-                <div className="text-4xl mb-3">B</div>
-                <div className="text-center leading-tight mb-3">
-                  {question?.optionB}
+                {/* B label on left - narrow column */}
+                <div className="flex items-center justify-center pr-2 sm:pr-3">
+                  <div className="text-4xl sm:text-5xl font-bold">B</div>
                 </div>
-                {membersChosenB.length > 0 && (
-                  <div className="flex gap-1 mt-2 flex-wrap justify-center">
-                    {membersChosenB.map((member: any) => (
-                      <div key={member.id} className="text-5xl">
-                        {member.avatar}
-                      </div>
-                    ))}
+                
+                {/* Right side: 2 rows - text top, avatars bottom */}
+                <div className="flex-1 flex flex-col justify-between">
+                  {/* Text row - centered in cell */}
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
+                      {question?.optionB}
+                    </div>
                   </div>
-                )}
+                  
+                  {/* Avatar row - centered in cell, fixed height to prevent layout shift */}
+                  <div className="min-h-[56px] sm:min-h-[70px] flex gap-1 flex-wrap justify-center items-center">
+                    {membersChosenB.length > 0 ? (
+                      membersChosenB.map((member: any) => (
+                        <div key={member.id} className="text-4xl sm:text-6xl">
+                          {member.avatar}
+                        </div>
+                      ))
+                    ) : (
+                      // Invisible placeholder to maintain space
+                      <div className="h-[48px] sm:h-[64px]" aria-hidden="true"></div>
+                    )}
+                  </div>
+                </div>
               </motion.button>
             </div>
 
@@ -901,11 +947,11 @@ function UserPageContent() {
                   initial={{ scale: 0.95 }}
                   animate={{ scale: [1, 1.02, 1] }}
                   transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                  className="relative w-full h-16 rounded-xl overflow-hidden ring-4 ring-orange-400 shadow-2xl"
+                  className="relative w-full h-12 sm:h-16 rounded-xl overflow-hidden ring-4 ring-orange-400 shadow-2xl"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-500" />
                   <div className="relative z-10 flex items-center justify-center h-full">
-                    <p className="text-2xl font-bold text-white drop-shadow-lg">
+                    <p className="text-lg sm:text-2xl font-bold text-white drop-shadow-lg">
                       ⏰ Session ending soon!
                     </p>
                   </div>
@@ -929,7 +975,7 @@ function UserPageContent() {
                     repeat: Infinity,
                     ease: "easeInOut"
                   } : {}}
-                  className={`relative w-full h-16 rounded-xl overflow-hidden transition-all ${
+                  className={`relative w-full h-12 sm:h-16 rounded-xl overflow-hidden transition-all ${
                     canComplete
                       ? "ring-4 ring-green-400 cursor-pointer shadow-2xl"
                       : "shadow-lg cursor-not-allowed"
@@ -969,7 +1015,7 @@ function UserPageContent() {
                     animate={canComplete ? { scale: [1, 1.05, 1] } : {}}
                     transition={canComplete ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
                   >
-                    <p className="text-2xl font-bold text-white drop-shadow-lg">
+                    <p className="text-lg sm:text-2xl font-bold text-white drop-shadow-lg">
                       {canComplete ? "Done" : "Choose and discuss"}
                     </p>
                   </motion.div>
@@ -1030,7 +1076,7 @@ function UserPageContent() {
     const totalRounds = gameState?.game?.totalRounds || 0;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-background overflow-hidden">
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 pb-20 bg-background overflow-hidden">
         <TitleBar />
         <AnimatePresence mode="wait">
           <motion.div
@@ -1060,6 +1106,18 @@ function UserPageContent() {
 
           </motion.div>
         </AnimatePresence>
+
+        {/* Leave button - fixed at bottom */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          onClick={handleLeaveRoom}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg"
+          aria-label="Leave room"
+        >
+          Leave
+        </motion.button>
       </main>
     );
   }
@@ -1067,7 +1125,7 @@ function UserPageContent() {
   // Phase 2: Complete state - just show session ended
   if (state.matches("phase2_complete")) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-gray-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 pb-20 bg-gradient-to-b from-gray-50 to-white">
         <TitleBar />
         <motion.div
           initial={{ opacity: 0 }}
@@ -1082,6 +1140,18 @@ function UserPageContent() {
             Thanks for participating!
           </p>
         </motion.div>
+
+        {/* Leave button - fixed at bottom */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          onClick={handleLeaveRoom}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg"
+          aria-label="Leave room"
+        >
+          Leave
+        </motion.button>
       </main>
     );
   }
