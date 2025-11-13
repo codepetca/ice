@@ -603,11 +603,11 @@ function UserPageContent() {
           className="w-full max-w-md space-y-8"
         >
           <div className="text-center space-y-4">
-            <div className="flex justify-center gap-3">
+            <div className="flex justify-center gap-2 sm:gap-4">
               {roomCode.split('').map((letter, index) => (
                 <div
                   key={index}
-                  className="w-16 h-20 flex items-center justify-center text-4xl font-display font-bold border-4 border-primary-300 rounded-3xl bg-primary text-primary-foreground shadow-glow uppercase text-white"
+                  className="w-16 h-20 sm:w-20 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-display font-bold border-2 border-border rounded-2xl bg-primary text-primary-foreground shadow-sm uppercase"
                 >
                   {letter}
                 </div>
