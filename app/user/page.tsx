@@ -716,7 +716,7 @@ function UserPageContent() {
             {availableUsers && availableUsers.length > 0 ? (
               <>
                 <h3 className="text-2xl font-semibold text-gray-700">
-                  Join a group
+                  Join up
                 </h3>
                 {!room?.windingDownStartedAt && (
                   <>
