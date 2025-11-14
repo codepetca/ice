@@ -214,6 +214,9 @@ export const startGame = mutation({
       status: "in_progress",
       currentRound: 1,
       startedAt: Date.now(),
+      stage: "pre_reveal",
+      stageStartedAt: Date.now(),
+      isFinished: false,
     });
   },
 });
@@ -371,6 +374,69 @@ export const previousRound = mutation({
     await ctx.db.patch(args.gameId, {
       currentRound: game.currentRound - 1,
     });
+  },
+});
+
+// Set slideshow stage (host-driven timer)
+export const setSlideStage = mutation({
+  args: {
+    gameId: v.id("games"),
+    stage: v.union(v.literal("pre_reveal"), v.literal("revealed")),
+  },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get(args.gameId);
+    if (!game) throw new Error("Game not found");
+    if (game.status !== "in_progress") throw new Error("Game not in progress");
+
+    await ctx.db.patch(args.gameId, {
+      stage: args.stage,
+      stageStartedAt: Date.now(),
+    });
+
+    // If transitioning to revealed stage, also mark round as revealed
+    if (args.stage === "revealed") {
+      const currentRound = await ctx.db
+        .query("gameRounds")
+        .withIndex("by_game_and_round", (q) =>
+          q.eq("gameId", args.gameId).eq("roundNumber", game.currentRound)
+        )
+        .first();
+
+      if (currentRound && !currentRound.revealedAt) {
+        await ctx.db.patch(currentRound._id, {
+          revealedAt: Date.now(),
+        });
+      }
+    }
+  },
+});
+
+// Advance to next slide (with stage reset)
+export const advanceSlide = mutation({
+  args: {
+    gameId: v.id("games"),
+  },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get(args.gameId);
+    if (!game) throw new Error("Game not found");
+    if (game.status !== "in_progress") throw new Error("Game not in progress");
+
+    // Check if this is the last round
+    if (game.currentRound >= game.totalRounds) {
+      // Mark as finished (don't complete yet - let host close room)
+      await ctx.db.patch(args.gameId, {
+        isFinished: true,
+        stage: undefined,
+        stageStartedAt: undefined,
+      });
+    } else {
+      // Advance to next round and reset to pre_reveal
+      await ctx.db.patch(args.gameId, {
+        currentRound: game.currentRound + 1,
+        stage: "pre_reveal",
+        stageStartedAt: Date.now(),
+      });
+    }
   },
 });
 

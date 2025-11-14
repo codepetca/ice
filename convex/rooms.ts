@@ -289,6 +289,45 @@ export const resetRoom = mutation({
   },
 });
 
+// Close room and remove all users
+export const closeRoom = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    pin: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.pin !== args.pin) throw new Error("Invalid PIN");
+
+    // Mark all users as removed by deleting them
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    
+    for (const user of users) {
+      await ctx.db.delete(user._id);
+    }
+
+    // Mark game as completed if it exists
+    const game = await ctx.db
+      .query("games")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .first();
+    
+    if (game && game.status === "in_progress") {
+      await ctx.db.patch(game._id, {
+        status: "completed",
+        completedAt: Date.now(),
+      });
+    }
+
+    // Delete the room itself
+    await ctx.db.delete(args.roomId);
+  },
+});
+
 export const getRoomStats = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {

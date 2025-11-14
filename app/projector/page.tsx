@@ -135,7 +135,7 @@ export default function ProjectorPage() {
                   percentA={currentRound.questionData.percentA}
                   percentB={currentRound.questionData.percentB}
                   totalResponses={currentRound.questionData.totalResponses}
-                  isRevealed={!!currentRound.round.revealedAt}
+                  isRevealed={game.stage === "revealed"}
                   roundNumber={currentRound.round.roundNumber}
                   variant="projector"
                 />

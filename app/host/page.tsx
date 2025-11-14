@@ -75,6 +75,9 @@ export default function HostPage() {
   const advanceRound = useMutation(api.games.advanceRound);
   const previousRound = useMutation(api.games.previousRound);
   const endGame = useMutation(api.games.endGame);
+  const setSlideStage = useMutation(api.games.setSlideStage);
+  const advanceSlide = useMutation(api.games.advanceSlide);
+  const closeRoom = useMutation(api.rooms.closeRoom);
 
   // Query to validate saved room on mount
   const savedRoomQuery = useQuery(
@@ -180,8 +183,62 @@ export default function HostPage() {
     }
   }, [room, currentTime, roomId, pin]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Manual navigation - auto-advance disabled
-  // Use forward/backward buttons to control slideshow
+  // Slideshow auto-timer (host-driven)
+  // Runs when game is in progress and manages stage transitions
+  useEffect(() => {
+    if (!game || game.status !== "in_progress" || !game.stage || !game.stageStartedAt) {
+      return;
+    }
+
+    // If slideshow is finished, don't run timer
+    if (game.isFinished) {
+      return;
+    }
+
+    const now = Date.now();
+    const elapsed = now - game.stageStartedAt;
+    const STAGE_DURATION = 6000; // 6 seconds per stage
+    const TOLERANCE = 250; // 250ms tolerance to avoid jitter
+
+    let timeoutId: NodeJS.Timeout;
+
+    if (game.stage === "pre_reveal") {
+      // In pre_reveal stage: wait 6s then transition to revealed
+      const remaining = Math.max(0, STAGE_DURATION - elapsed);
+      
+      if (remaining <= TOLERANCE) {
+        // Transition immediately if we're already past the deadline
+        setSlideStage({ gameId: game._id, stage: "revealed" }).catch(console.error);
+      } else {
+        timeoutId = setTimeout(() => {
+          setSlideStage({ gameId: game._id, stage: "revealed" }).catch(console.error);
+        }, remaining);
+      }
+    } else if (game.stage === "revealed") {
+      // Don't auto-advance if this is the last round
+      if (game.currentRound >= game.totalRounds) {
+        return;
+      }
+
+      // In revealed stage: wait 6s then advance to next slide
+      const remaining = Math.max(0, STAGE_DURATION - elapsed);
+
+      if (remaining <= TOLERANCE) {
+        // Advance immediately if we're already past the deadline
+        advanceSlide({ gameId: game._id }).catch(console.error);
+      } else {
+        timeoutId = setTimeout(() => {
+          advanceSlide({ gameId: game._id }).catch(console.error);
+        }, remaining);
+      }
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [game?.stage, game?.stageStartedAt, game?.isFinished, game?._id, game?.status, setSlideStage, advanceSlide]);
 
   // Watch for new users joining and show notification
   useEffect(() => {
@@ -350,45 +407,6 @@ export default function HostPage() {
 
   // Phase 2 handlers
 
-  const handleNextSlide = async () => {
-    if (!game) return;
-
-    try {
-      // Ensure current round is revealed before advancing
-      if (currentRound && !currentRound.round.revealedAt) {
-        await revealRound({ gameId: game._id });
-      }
-      // Advance to next slide
-      await advanceRound({ gameId: game._id });
-    } catch (error: any) {
-      showToast(error.message, "error");
-    }
-  };
-
-  const handleRevealComplete = useCallback(async () => {
-    if (!game || !currentRound || currentRound.round.revealedAt) return;
-
-    try {
-      // Save reveal state to database
-      await revealRound({ gameId: game._id });
-    } catch (error: any) {
-      console.error("Error saving reveal:", error);
-    }
-  }, [game, currentRound, revealRound]);
-
-  const handlePreviousSlide = async () => {
-    if (!game) return;
-
-    try {
-      await previousRound({ gameId: game._id });
-    } catch (error: any) {
-      // Silently ignore "already at first round" errors
-      if (!error.message.includes("Already at first round")) {
-        showToast(error.message, "error");
-      }
-    }
-  };
-
   const handleToggleSlideshow = async () => {
     if (!roomId) return;
 
@@ -407,6 +425,29 @@ export default function HostPage() {
       } catch (error: any) {
         showToast(error.message, "error");
       }
+    }
+  };
+
+  const handleCloseRoom = async () => {
+    if (!roomId || !pin) return;
+
+    const confirmed = await showConfirm({
+      title: "Close Room?",
+      message: "This will end the session and remove all players from the room. This action cannot be undone.",
+      confirmText: "Close Room",
+      cancelText: "Cancel",
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await closeRoom({ roomId: roomId as Id<"rooms">, pin });
+      // Clear local storage
+      localStorage.removeItem(ROOM_STORAGE_KEY);
+      // Navigate back to create view
+      window.location.href = "/host";
+    } catch (error: any) {
+      showToast(error.message, "error");
     }
   };
 
@@ -825,16 +866,16 @@ export default function HostPage() {
                   className="w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl"
                 >
                   <SlideshowQuestion
+                    key={`${displayRound.round.roundNumber}-${game.stage}`}
                     questionText={displayRound.questionData.text || displayRound.round.questionText}
                     optionA={displayRound.questionData.optionA}
                     optionB={displayRound.questionData.optionB}
                     percentA={displayRound.questionData.percentA}
                     percentB={displayRound.questionData.percentB}
                     totalResponses={displayRound.questionData.totalResponses}
-                    isRevealed={false}
+                    isRevealed={game.stage === "revealed"}
                     roundNumber={displayRound.round.roundNumber}
                     variant="projector"
-                    onRevealComplete={handleRevealComplete}
                   />
                 </motion.div>
               </AnimatePresence>
@@ -880,27 +921,15 @@ export default function HostPage() {
                 <Play className="w-10 h-10 ml-1" />
               </button>
             )}
-            {game && game.status === "in_progress" && (
-              <>
-                <button
-                  onClick={handlePreviousSlide}
-                  disabled={game.currentRound <= 1}
-                  className="w-20 h-20 flex items-center justify-center bg-muted/50 hover:bg-muted/70 text-foreground rounded-full transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  aria-label="Previous slide"
-                >
-                  <ChevronLeft className="w-10 h-10" />
-                </button>
-                {/* Hide forward button on last slide */}
-                {game.currentRound < game.totalRounds && (
-                  <button
-                    onClick={handleNextSlide}
-                    className="w-20 h-20 flex items-center justify-center bg-muted/50 hover:bg-muted/70 text-foreground rounded-full transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
-                    aria-label="Next slide"
-                  >
-                    <ChevronRight className="w-10 h-10" />
-                  </button>
-                )}
-              </>
+            {game && game.isFinished && (
+              <button
+                onClick={handleCloseRoom}
+                className="px-8 py-4 flex items-center gap-3 bg-gradient-to-br from-red-600 to-red-700 text-white rounded-full hover:from-red-700 hover:to-red-800 transition-all shadow-2xl hover:shadow-3xl hover:scale-105 active:scale-95 text-lg font-semibold"
+                aria-label="Close room"
+              >
+                <Square className="w-6 h-6" />
+                Exit / Close Room
+              </button>
             )}
           </div>
         </div>

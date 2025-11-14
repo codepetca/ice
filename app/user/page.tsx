@@ -215,20 +215,10 @@ function UserPageContent() {
     }
   }, [hasVoted, state, send]);
 
-  // Phase 2: Monitor round reveal
-  useEffect(() => {
-    if (
-      state.matches("phase2_waiting") &&
-      currentRound?.round.revealedAt
-    ) {
-      send({ type: "ROUND_REVEALED" });
-    }
-  }, [currentRound, state, send]);
-
   // Phase 2: Monitor round advancement
   useEffect(() => {
     if (
-      state.matches("phase2_reveal") &&
+      state.matches("phase2_waiting") &&
       gameState?.game
     ) {
       // Check if we moved to a new round
@@ -1098,7 +1088,7 @@ function UserPageContent() {
                 percentA={currentRound.questionData.percentA}
                 percentB={currentRound.questionData.percentB}
                 totalResponses={currentRound.questionData.totalResponses}
-                isRevealed={false}
+                isRevealed={!!currentRound?.round.revealedAt}
                 roundNumber={roundNumber || 1}
                 variant="user"
               />
