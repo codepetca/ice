@@ -215,9 +215,14 @@ export default function HostPage() {
         }, remaining);
       }
     } else if (game.stage === "revealed") {
+      // Don't auto-advance if this is the last round
+      if (game.currentRound >= game.totalRounds) {
+        return;
+      }
+
       // In revealed stage: wait 6s then advance to next slide
       const remaining = Math.max(0, STAGE_DURATION - elapsed);
-      
+
       if (remaining <= TOLERANCE) {
         // Advance immediately if we're already past the deadline
         advanceSlide({ gameId: game._id }).catch(console.error);
@@ -233,7 +238,7 @@ export default function HostPage() {
         clearTimeout(timeoutId);
       }
     };
-  }, [game, setSlideStage, advanceSlide]);
+  }, [game?.stage, game?.stageStartedAt, game?.isFinished, game?._id, game?.status, setSlideStage, advanceSlide]);
 
   // Watch for new users joining and show notification
   useEffect(() => {
@@ -861,6 +866,7 @@ export default function HostPage() {
                   className="w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl"
                 >
                   <SlideshowQuestion
+                    key={`${displayRound.round.roundNumber}-${game.stage}`}
                     questionText={displayRound.questionData.text || displayRound.round.questionText}
                     optionA={displayRound.questionData.optionA}
                     optionB={displayRound.questionData.optionB}

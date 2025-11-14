@@ -202,7 +202,10 @@ export const userMachine = setup({
     },
     phase2_waiting: {
       on: {
-        ROUND_REVEALED: "phase2_reveal",
+        NEXT_ROUND: {
+          target: "phase2_voting",
+          actions: "nextRound",
+        },
         ROOM_RESET: {
           target: "browsing",
           actions: "resetPhase2",
