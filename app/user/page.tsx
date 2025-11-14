@@ -603,16 +603,9 @@ function UserPageContent() {
           className="w-full max-w-md space-y-8"
         >
           <div className="text-center space-y-4">
-            <div className="flex justify-center gap-2 sm:gap-4">
-              {roomCode.split('').map((letter, index) => (
-                <div
-                  key={index}
-                  className="w-16 h-20 sm:w-20 sm:h-24 flex items-center justify-center text-4xl sm:text-5xl font-display font-bold border-2 border-border rounded-2xl bg-primary text-primary-foreground shadow-sm uppercase"
-                >
-                  {letter}
-                </div>
-              ))}
-            </div>
+            <p className="text-xs sm:text-sm font-sans text-muted-foreground uppercase tracking-[0.3em]">
+              Room Code: {roomCode}
+            </p>
             <p className="text-xl font-sans text-gray-600">Choose your avatar</p>
           </div>
 
