@@ -604,7 +604,7 @@ function UserPageContent() {
         >
           <div className="text-center space-y-4">
             <p className="text-xs sm:text-sm font-sans text-muted-foreground uppercase tracking-[0.3em]">
-              Room Code: {roomCode}
+              {roomCode}
             </p>
             <p className="text-xl font-sans text-gray-600">Choose your avatar</p>
           </div>
