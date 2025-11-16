@@ -862,14 +862,14 @@ function UserPageContent() {
                 }`}
               >
                 {/* Top row: 2/3 height - Letter + Text */}
-                <div className="flex-[2] flex flex-row items-end">
+                <div className="flex-[2] flex flex-row items-stretch">
                   {/* Letter column - narrow */}
-                  <div className="flex items-end justify-center w-12 sm:w-16 shrink-0">
+                  <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
                     <div className="text-4xl sm:text-5xl font-bold">A</div>
                   </div>
                   
-                  {/* Text column - wider, bottom aligned */}
-                  <div className="flex-1 flex items-end justify-center pl-2 sm:pl-3">
+                  {/* Text column - wider, vertically centered */}
+                  <div className="flex-1 flex items-center justify-center pl-2 sm:pl-3">
                     <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
                       {question?.optionA}
                     </div>
@@ -883,7 +883,7 @@ function UserPageContent() {
                       membersChosenA.map((member: any, index: number) => (
                         <div 
                           key={member.id} 
-                          className="text-3xl sm:text-5xl"
+                          className="text-5xl sm:text-7xl"
                           style={{ zIndex: membersChosenA.length - index }}
                         >
                           {member.avatar}
@@ -891,7 +891,7 @@ function UserPageContent() {
                       ))
                     ) : (
                       // Invisible placeholder to maintain space
-                      <div className="h-[36px] sm:h-[48px]" aria-hidden="true"></div>
+                      <div className="h-[48px] sm:h-[72px]" aria-hidden="true"></div>
                     )}
                   </div>
                 </div>
@@ -905,14 +905,14 @@ function UserPageContent() {
                 }`}
               >
                 {/* Top row: 2/3 height - Letter + Text */}
-                <div className="flex-[2] flex flex-row items-end">
+                <div className="flex-[2] flex flex-row items-stretch">
                   {/* Letter column - narrow */}
-                  <div className="flex items-end justify-center w-12 sm:w-16 shrink-0">
+                  <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
                     <div className="text-4xl sm:text-5xl font-bold">B</div>
                   </div>
                   
-                  {/* Text column - wider, bottom aligned */}
-                  <div className="flex-1 flex items-end justify-center pl-2 sm:pl-3">
+                  {/* Text column - wider, vertically centered */}
+                  <div className="flex-1 flex items-center justify-center pl-2 sm:pl-3">
                     <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
                       {question?.optionB}
                     </div>
@@ -926,7 +926,7 @@ function UserPageContent() {
                       membersChosenB.map((member: any, index: number) => (
                         <div 
                           key={member.id} 
-                          className="text-3xl sm:text-5xl"
+                          className="text-5xl sm:text-7xl"
                           style={{ zIndex: membersChosenB.length - index }}
                         >
                           {member.avatar}
@@ -934,7 +934,7 @@ function UserPageContent() {
                       ))
                     ) : (
                       // Invisible placeholder to maintain space
-                      <div className="h-[36px] sm:h-[48px]" aria-hidden="true"></div>
+                      <div className="h-[48px] sm:h-[72px]" aria-hidden="true"></div>
                     )}
                   </div>
                 </div>
