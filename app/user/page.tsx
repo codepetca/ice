@@ -862,14 +862,14 @@ function UserPageContent() {
                 }`}
               >
                 {/* Top row: 2/3 height - Letter + Text */}
-                <div className="flex-[2] flex flex-row items-stretch">
+                <div className="flex-[2] flex flex-row items-end">
                   {/* Letter column - narrow */}
-                  <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
+                  <div className="flex items-end justify-center w-12 sm:w-16 shrink-0">
                     <div className="text-4xl sm:text-5xl font-bold">A</div>
                   </div>
                   
-                  {/* Text column - wider, vertically centered */}
-                  <div className="flex-1 flex items-center justify-center pl-2 sm:pl-3">
+                  {/* Text column - wider, bottom aligned */}
+                  <div className="flex-1 flex items-end justify-center pl-2 sm:pl-3">
                     <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
                       {question?.optionA}
                     </div>
@@ -877,7 +877,7 @@ function UserPageContent() {
                 </div>
                 
                 {/* Bottom row: 1/3 height - Avatars */}
-                <div className="flex-1 flex items-center justify-center min-h-[50px] sm:min-h-[60px]">
+                <div className="flex-1 flex items-start justify-center min-h-[50px] sm:min-h-[60px]">
                   <div className="flex -space-x-2 sm:-space-x-3">
                     {membersChosenA.length > 0 ? (
                       membersChosenA.map((member: any, index: number) => (
@@ -905,14 +905,14 @@ function UserPageContent() {
                 }`}
               >
                 {/* Top row: 2/3 height - Letter + Text */}
-                <div className="flex-[2] flex flex-row items-stretch">
+                <div className="flex-[2] flex flex-row items-end">
                   {/* Letter column - narrow */}
-                  <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
+                  <div className="flex items-end justify-center w-12 sm:w-16 shrink-0">
                     <div className="text-4xl sm:text-5xl font-bold">B</div>
                   </div>
                   
-                  {/* Text column - wider, vertically centered */}
-                  <div className="flex-1 flex items-center justify-center pl-2 sm:pl-3">
+                  {/* Text column - wider, bottom aligned */}
+                  <div className="flex-1 flex items-end justify-center pl-2 sm:pl-3">
                     <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
                       {question?.optionB}
                     </div>
@@ -920,7 +920,7 @@ function UserPageContent() {
                 </div>
                 
                 {/* Bottom row: 1/3 height - Avatars */}
-                <div className="flex-1 flex items-center justify-center min-h-[50px] sm:min-h-[60px]">
+                <div className="flex-1 flex items-start justify-center min-h-[50px] sm:min-h-[60px]">
                   <div className="flex -space-x-2 sm:-space-x-3">
                     {membersChosenB.length > 0 ? (
                       membersChosenB.map((member: any, index: number) => (
