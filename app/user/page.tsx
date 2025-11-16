@@ -857,86 +857,74 @@ function UserPageContent() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("A")}
-                className={`rounded-3xl flex flex-col p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[200px] sm:min-h-0 sm:aspect-square ${
+                className={`rounded-3xl flex flex-row items-center p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[200px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "A" ? "ring-4 ring-primary-300" : ""
                 }`}
               >
-                {/* Top row: 2/3 height - Letter + Text */}
-                <div className="flex-[2] flex flex-row items-stretch">
-                  {/* Letter column - narrow */}
-                  <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
-                    <div className="text-4xl sm:text-5xl font-bold">A</div>
-                  </div>
-                  
-                  {/* Text column - wider, vertically centered */}
-                  <div className="flex-1 flex items-center justify-center pl-2 sm:pl-3">
-                    <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
-                      {question?.optionA}
-                    </div>
+                {/* Left column: Letter - narrow, center aligned */}
+                <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
+                  <div className="text-4xl sm:text-5xl font-bold">A</div>
+                </div>
+                
+                {/* Middle column: Question text - widest, center aligned */}
+                <div className="flex-1 flex items-center justify-center px-2 sm:px-4">
+                  <div className="text-center leading-tight text-xl sm:text-3xl font-semibold">
+                    {question?.optionA}
                   </div>
                 </div>
                 
-                {/* Bottom row: 1/3 height - Avatars */}
-                <div className="flex-1 flex items-start justify-center min-h-[50px] sm:min-h-[60px]">
-                  <div className="flex -space-x-2 sm:-space-x-3">
-                    {membersChosenA.length > 0 ? (
-                      membersChosenA.map((member: any, index: number) => (
-                        <div 
-                          key={member.id} 
-                          className="text-5xl sm:text-7xl"
-                          style={{ zIndex: membersChosenA.length - index }}
-                        >
-                          {member.avatar}
-                        </div>
-                      ))
-                    ) : (
-                      // Invisible placeholder to maintain space
-                      <div className="h-[48px] sm:h-[72px]" aria-hidden="true"></div>
-                    )}
-                  </div>
+                {/* Right column: Avatars - narrow, vertical list, center aligned */}
+                <div className="flex flex-col items-center justify-center gap-1 w-12 sm:w-16 shrink-0">
+                  {membersChosenA.length > 0 ? (
+                    membersChosenA.map((member: any) => (
+                      <div 
+                        key={member.id} 
+                        className="text-4xl sm:text-5xl"
+                      >
+                        {member.avatar}
+                      </div>
+                    ))
+                  ) : (
+                    // Invisible placeholder to maintain space
+                    <div className="h-[40px] sm:h-[48px]" aria-hidden="true"></div>
+                  )}
                 </div>
               </motion.button>
 
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("B")}
-                className={`rounded-3xl flex flex-col p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[200px] sm:min-h-0 sm:aspect-square ${
+                className={`rounded-3xl flex flex-row items-center p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[200px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "B" ? "ring-4 ring-blue-300" : ""
                 }`}
               >
-                {/* Top row: 2/3 height - Letter + Text */}
-                <div className="flex-[2] flex flex-row items-stretch">
-                  {/* Letter column - narrow */}
-                  <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
-                    <div className="text-4xl sm:text-5xl font-bold">B</div>
-                  </div>
-                  
-                  {/* Text column - wider, vertically centered */}
-                  <div className="flex-1 flex items-center justify-center pl-2 sm:pl-3">
-                    <div className="text-center leading-tight text-lg sm:text-2xl font-semibold">
-                      {question?.optionB}
-                    </div>
+                {/* Left column: Letter - narrow, center aligned */}
+                <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
+                  <div className="text-4xl sm:text-5xl font-bold">B</div>
+                </div>
+                
+                {/* Middle column: Question text - widest, center aligned */}
+                <div className="flex-1 flex items-center justify-center px-2 sm:px-4">
+                  <div className="text-center leading-tight text-xl sm:text-3xl font-semibold">
+                    {question?.optionB}
                   </div>
                 </div>
                 
-                {/* Bottom row: 1/3 height - Avatars */}
-                <div className="flex-1 flex items-start justify-center min-h-[50px] sm:min-h-[60px]">
-                  <div className="flex -space-x-2 sm:-space-x-3">
-                    {membersChosenB.length > 0 ? (
-                      membersChosenB.map((member: any, index: number) => (
-                        <div 
-                          key={member.id} 
-                          className="text-5xl sm:text-7xl"
-                          style={{ zIndex: membersChosenB.length - index }}
-                        >
-                          {member.avatar}
-                        </div>
-                      ))
-                    ) : (
-                      // Invisible placeholder to maintain space
-                      <div className="h-[48px] sm:h-[72px]" aria-hidden="true"></div>
-                    )}
-                  </div>
+                {/* Right column: Avatars - narrow, vertical list, center aligned */}
+                <div className="flex flex-col items-center justify-center gap-1 w-12 sm:w-16 shrink-0">
+                  {membersChosenB.length > 0 ? (
+                    membersChosenB.map((member: any) => (
+                      <div 
+                        key={member.id} 
+                        className="text-4xl sm:text-5xl"
+                      >
+                        {member.avatar}
+                      </div>
+                    ))
+                  ) : (
+                    // Invisible placeholder to maintain space
+                    <div className="h-[40px] sm:h-[48px]" aria-hidden="true"></div>
+                  )}
                 </div>
               </motion.button>
             </div>
