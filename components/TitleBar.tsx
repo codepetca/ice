@@ -22,7 +22,7 @@ export function TitleBar({ title, subtitle, showTitle = false }: TitleBarProps) 
   };
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/40">
+    <div className="fixed top-0 left-0 right-0 z-50">
       <div className="flex items-center justify-between px-4 py-3 sm:px-6">
         {/* Left side - Title (optional) */}
         <div className="flex-1">
