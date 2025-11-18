@@ -67,6 +67,9 @@ export default defineSchema({
   })
     .index("by_room", ["roomId"])
     .index("by_user1", ["user1Id"])
+    .index("by_user2", ["user2Id"])
+    .index("by_user3", ["user3Id"])
+    .index("by_user4", ["user4Id"])
     .index("by_room_and_status", ["roomId", "status"]),
 
   questions: defineTable({
