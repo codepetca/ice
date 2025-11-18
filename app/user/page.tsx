@@ -585,7 +585,7 @@ function UserPageContent() {
     }
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 pt-16 bg-background">
         <TitleBar />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -637,12 +637,12 @@ function UserPageContent() {
       const userAvatar = state.context.avatar || selectedAvatar;
 
       return (
-        <main className="flex min-h-screen flex-col items-center p-8 bg-background">
+        <main className="flex min-h-screen flex-col items-center p-8 pt-24 bg-background">
           <TitleBar />
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-md space-y-8 text-center mt-8"
+            className="w-full max-w-md space-y-8 text-center"
           >
             <div className="mb-6">
               <AvatarDisplay avatar={userAvatar} size="lg" />
@@ -661,8 +661,9 @@ function UserPageContent() {
     const userAvatar = state.context.avatar || selectedAvatar;
 
     return (
-      <main className="flex min-h-screen flex-col items-center p-8 bg-background">
+      <main className="h-screen flex flex-col bg-background overflow-hidden">
         <TitleBar />
+
         {/* Incoming requests banner */}
         {incomingRequests && incomingRequests.length > 0 && (
           <RequestBanner
@@ -686,74 +687,83 @@ function UserPageContent() {
           </motion.div>
         )}
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md space-y-8 text-center mt-8"
-        >
-          <div className="mb-6">
-            <AvatarDisplay avatar={userAvatar} size="xl" />
-          </div>
-
-          <div className="space-y-6">
-            {availableUsers && availableUsers.length > 0 ? (
-              <>
-                <h3 className="text-2xl font-semibold text-gray-700">
-                  Join up
-                </h3>
-                {!room?.windingDownStartedAt && (
-                  <>
-                    <div className="grid grid-cols-3 gap-4">
-                      {availableUsers.map((user) => {
-                        const hasIncomingRequests = incomingRequests && incomingRequests.length > 0;
-                        const isDisabled = hasIncomingRequests;
-
-                        return (
-                          <motion.button
-                            key={user.id}
-                            whileTap={isDisabled ? {} : { scale: 0.95 }}
-                            onClick={() => {
-                              if (isDisabled) return;
-                              setSelectedUser(user.id);
-                              handleSendRequest(user.id);
-                            }}
-                            disabled={isDisabled}
-                            className={`aspect-square rounded-2xl flex flex-col items-center justify-center text-6xl transition-all relative ${
-                              isDisabled
-                                ? "bg-gray-100 dark:bg-gray-800 border-4 border-gray-200 dark:border-gray-700 opacity-40 cursor-not-allowed"
-                                : selectedUser === user.id
-                                ? "bg-primary text-primary-foreground shadow-xl ring-4 ring-primary-300"
-                                : "bg-white dark:bg-gray-800 border-4 border-gray-200 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-lg"
-                            }`}
-                          >
-                            {selectedUser === user.id ? (
-                              <LoadingSpinner size="md" color="border-purple-200 border-t-white" />
-                            ) : (
-                              <>
-                                <div>{user.avatar}</div>
-                                 {user.groupSize > 0 && (
-                                  <div className="text-xs mt-1 text-gray-600 dark:text-gray-400">
-                                    {user.groupSize}/{room?.maxGroupSize || 4}
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </motion.button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <p className="text-lg font-medium">
-                  Waiting for others to be available
-                </p>
+        {/* Content area - accounts for TitleBar */}
+        <div className="flex-1 flex flex-col pt-16 overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex-1 flex flex-col items-center"
+          >
+            {/* Fixed user avatar section */}
+            <div className="flex-shrink-0 px-8 pt-8 text-center">
+              <div className="mb-6">
+                <AvatarDisplay avatar={userAvatar} size="xl" />
               </div>
-            )}
-          </div>
-        </motion.div>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto scrollbar-hide px-8 pb-8 w-full">
+              <div className="max-w-md mx-auto space-y-6">
+                {availableUsers && availableUsers.length > 0 ? (
+                  <>
+                    <h3 className="text-2xl font-semibold text-gray-700 text-center">
+                      Join up
+                    </h3>
+                    {!room?.windingDownStartedAt && (
+                      <>
+                        <div className="grid grid-cols-3 gap-4">
+                          {availableUsers.map((user) => {
+                            const hasIncomingRequests = incomingRequests && incomingRequests.length > 0;
+                            const isDisabled = hasIncomingRequests;
+
+                            return (
+                              <motion.button
+                                key={user.id}
+                                whileTap={isDisabled ? {} : { scale: 0.95 }}
+                                onClick={() => {
+                                  if (isDisabled) return;
+                                  setSelectedUser(user.id);
+                                  handleSendRequest(user.id);
+                                }}
+                                disabled={isDisabled}
+                                className={`aspect-square rounded-2xl flex flex-col items-center justify-center text-6xl transition-all relative ${
+                                  isDisabled
+                                    ? "bg-gray-100 dark:bg-gray-800 border-4 border-gray-200 dark:border-gray-700 opacity-40 cursor-not-allowed"
+                                    : selectedUser === user.id
+                                    ? "bg-primary text-primary-foreground shadow-xl ring-4 ring-primary-300"
+                                    : "bg-white dark:bg-gray-800 border-4 border-gray-200 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-lg"
+                                }`}
+                              >
+                                {selectedUser === user.id ? (
+                                  <LoadingSpinner size="md" color="border-purple-200 border-t-white" />
+                                ) : (
+                                  <>
+                                    <div>{user.avatar}</div>
+                                     {user.groupSize > 0 && (
+                                      <div className="text-xs mt-1 text-gray-600 dark:text-gray-400">
+                                        {user.groupSize}/{room?.maxGroupSize || 4}
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </motion.button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-lg font-medium">
+                      Waiting for others to be available
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </main>
     );
   }
@@ -764,7 +774,7 @@ function UserPageContent() {
     const inRequestsDisplay = incomingRequests && incomingRequests.length > 0;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-background">
+      <main className="flex min-h-screen flex-col items-center justify-center pt-16 bg-background">
         <TitleBar />
         {inRequestsDisplay && (
           <RequestBanner
@@ -809,7 +819,7 @@ function UserPageContent() {
     const canComplete = elapsedTime >= 60;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-3 sm:p-8 bg-gradient-to-b from-yellow-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-3 pt-16 sm:p-8 sm:pt-24 bg-gradient-to-b from-yellow-50 to-white">
         <TitleBar />
         {/* Show subtle banner for incoming requests during active session */}
         {incomingRequests && incomingRequests.length > 0 && (
@@ -1045,7 +1055,7 @@ function UserPageContent() {
   // Session locked state
   if (state.matches("session_locked")) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-background">
+      <main className="flex min-h-screen flex-col items-center justify-center pt-16 bg-background">
         <TitleBar />
         <WaitingScreen title="Results Starting..." />
       </main>
@@ -1059,7 +1069,7 @@ function UserPageContent() {
     const totalRounds = gameState?.game?.totalRounds || 0;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-6 pb-20 bg-background overflow-hidden">
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 pt-20 pb-20 bg-background overflow-hidden">
         <TitleBar />
         <AnimatePresence mode="wait">
           <motion.div
@@ -1110,7 +1120,7 @@ function UserPageContent() {
   // Phase 2: Complete state - just show session ended
   if (state.matches("phase2_complete")) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 pb-20 bg-gradient-to-b from-gray-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 pt-24 pb-20 bg-gradient-to-b from-gray-50 to-white">
         <TitleBar />
         <motion.div
           initial={{ opacity: 0 }}
