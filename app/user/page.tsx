@@ -819,7 +819,7 @@ function UserPageContent() {
     const canComplete = elapsedTime >= 60;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-3 sm:p-8 bg-gradient-to-b from-yellow-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-3 sm:p-8 bg-gradient-to-b from-yellow-50 to-white dark:from-gray-900 dark:to-gray-800">
         <TitleBar />
         {/* Show subtle banner for incoming requests during active session */}
         {incomingRequests && incomingRequests.length > 0 && (
@@ -850,7 +850,7 @@ function UserPageContent() {
           className="w-full max-w-2xl space-y-3 sm:space-y-8"
         >
           <div className="text-center">
-            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-8 leading-tight">
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-8 leading-tight">
               {question?.text}
             </h2>
           </div>
