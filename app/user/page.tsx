@@ -1091,16 +1091,18 @@ function UserPageContent() {
         </AnimatePresence>
 
         {/* Leave button - fixed at bottom */}
-        <motion.button
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          onClick={handleLeaveRoom}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg"
-          aria-label="Leave room"
-        >
-          Leave
-        </motion.button>
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center pointer-events-none">
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={handleLeaveRoom}
+            className="px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg pointer-events-auto"
+            aria-label="Leave room"
+          >
+            Leave
+          </motion.button>
+        </div>
       </main>
     );
   }
@@ -1125,16 +1127,18 @@ function UserPageContent() {
         </motion.div>
 
         {/* Leave button - fixed at bottom */}
-        <motion.button
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          onClick={handleLeaveRoom}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg"
-          aria-label="Leave room"
-        >
-          Leave
-        </motion.button>
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center pointer-events-none">
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={handleLeaveRoom}
+            className="px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg pointer-events-auto"
+            aria-label="Leave room"
+          >
+            Leave
+          </motion.button>
+        </div>
       </main>
     );
   }
