@@ -68,7 +68,7 @@ export function RequestBanner({
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          className="fixed inset-x-0 top-0 z-50 flex items-start justify-center p-4"
+          className="fixed inset-x-0 top-0 z-60 flex items-start justify-center p-4"
           style={{ paddingTop: "max(env(safe-area-inset-top), 1rem)" }}
         >
           <div className="bg-card rounded-lg shadow-lg border-2 border-primary p-6 w-full max-w-md">
@@ -123,7 +123,7 @@ export function RequestBanner({
           initial={{ opacity: 0, y: -100 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -100 }}
-          className="fixed inset-x-0 top-0 z-50 p-2"
+          className="fixed inset-x-0 top-0 z-60 p-2"
           style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}
         >
           <div className="bg-primary text-primary-foreground rounded-lg shadow-lg p-3 flex items-center justify-between max-w-2xl mx-auto">

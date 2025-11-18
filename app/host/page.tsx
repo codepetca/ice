@@ -654,7 +654,7 @@ export default function HostPage() {
           {/* URL and Room Code - Fixed below title bar */}
           <div className="fixed top-16 left-0 right-0 z-40 text-center py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
             <div className="text-2xl text-muted-foreground font-medium mb-2">
-              https://joinroom.link
+              https://icewyrm.vercel.app
             </div>
             <div className="text-5xl font-display font-bold text-foreground uppercase tracking-[0.25em] -mr-[0.25em]">
               {roomCode}
@@ -752,7 +752,7 @@ export default function HostPage() {
           {/* URL and Room Code - Fixed below title bar */}
           <div className="fixed top-16 left-0 right-0 z-40 text-center py-4 bg-background/80 backdrop-blur-md border-b border-border/40">
             <div className="text-2xl text-muted-foreground font-medium mb-2">
-              https://joinroom.link
+              https://icewyrm.vercel.app
             </div>
             <div className="text-5xl font-display font-bold text-foreground uppercase tracking-[0.25em] -mr-[0.25em]">
               {roomCode}
