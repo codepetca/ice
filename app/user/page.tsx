@@ -585,7 +585,7 @@ function UserPageContent() {
     }
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 pt-16 bg-background">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         <TitleBar />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -637,7 +637,7 @@ function UserPageContent() {
       const userAvatar = state.context.avatar || selectedAvatar;
 
       return (
-        <main className="flex min-h-screen flex-col items-center p-8 pt-24 bg-background">
+        <main className="flex min-h-screen flex-col items-center p-8 bg-background">
           <TitleBar />
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -687,8 +687,8 @@ function UserPageContent() {
           </motion.div>
         )}
 
-        {/* Content area - accounts for TitleBar */}
-        <div className="flex-1 flex flex-col pt-16 overflow-hidden">
+        {/* Content area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -774,7 +774,7 @@ function UserPageContent() {
     const inRequestsDisplay = incomingRequests && incomingRequests.length > 0;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center pt-16 bg-background">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background">
         <TitleBar />
         {inRequestsDisplay && (
           <RequestBanner
@@ -819,7 +819,7 @@ function UserPageContent() {
     const canComplete = elapsedTime >= 60;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-3 pt-16 sm:p-8 sm:pt-24 bg-gradient-to-b from-yellow-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-3 sm:p-8 bg-gradient-to-b from-yellow-50 to-white">
         <TitleBar />
         {/* Show subtle banner for incoming requests during active session */}
         {incomingRequests && incomingRequests.length > 0 && (
@@ -1055,7 +1055,7 @@ function UserPageContent() {
   // Session locked state
   if (state.matches("session_locked")) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center pt-16 bg-background">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background">
         <TitleBar />
         <WaitingScreen title="Results Starting..." />
       </main>
@@ -1069,7 +1069,7 @@ function UserPageContent() {
     const totalRounds = gameState?.game?.totalRounds || 0;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-6 pt-20 pb-20 bg-background overflow-hidden">
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 pb-20 bg-background overflow-hidden">
         <TitleBar />
         <AnimatePresence mode="wait">
           <motion.div
@@ -1120,7 +1120,7 @@ function UserPageContent() {
   // Phase 2: Complete state - just show session ended
   if (state.matches("phase2_complete")) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 pt-24 pb-20 bg-gradient-to-b from-gray-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 pb-20 bg-gradient-to-b from-gray-50 to-white">
         <TitleBar />
         <motion.div
           initial={{ opacity: 0 }}
