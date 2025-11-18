@@ -53,21 +53,30 @@ function seededShuffle<T>(array: T[], seed: number): T[] {
 }
 
 /**
- * Selects a question for a group while avoiding recent repeats
+ * Selects a question for a group using room-based sequential rotation
  *
  * Algorithm:
  * 1. For each member, queries all 4 user slots (user1-4) to find their last 3 groups
  * 2. Collects all question IDs from those recent groups
- * 3. Filters active questions to exclude recent ones
- * 4. Uses deterministic daily shuffle (seeded by current date) for consistent rotation
- * 5. Returns first question from shuffled pool
+ * 3. Gets room's unique question sequence (deterministic shuffle seeded by roomId)
+ * 4. Starts at room's nextQuestionIndex and searches forward for a question not in recent history
+ * 5. If no valid question found in 50 positions, uses next question anyway (hybrid fallback)
+ * 6. Increments room's nextQuestionIndex for next group
+ * 7. Returns selected question
  *
- * @param ctx - Convex query context
+ * @param ctx - Convex mutation context
+ * @param roomId - Room ID for room-based sequence
  * @param memberIds - Array of user IDs in the group
  * @returns Selected question document with text, optionA, optionB, followUp
  * @throws Error if no questions are available in the database
  */
-async function selectQuestion(ctx: any, memberIds: string[]): Promise<any> {
+async function selectQuestion(ctx: any, roomId: string, memberIds: string[]): Promise<any> {
+  // Get the room to access nextQuestionIndex
+  const room = await ctx.db.get(roomId);
+  if (!room) {
+    throw new Error("Room not found");
+  }
+
   // Get recent questions for all members (last 3 each)
   const recentQuestionIds = new Set<string>();
 
@@ -119,29 +128,55 @@ async function selectQuestion(ctx: any, memberIds: string[]): Promise<any> {
     .filter((q: any) => q.eq(q.field("active"), true))
     .collect();
 
-  // Filter out recently used questions
-  const availableQuestions = allQuestions.filter(
-    (q: any) => !recentQuestionIds.has(q._id)
-  );
-
-  // If no available questions, use any question
-  const questionPool =
-    availableQuestions.length > 0 ? availableQuestions : allQuestions;
-
-  // Ensure we have at least one question
-  if (questionPool.length === 0) {
+  if (allQuestions.length === 0) {
     throw new Error("No questions available");
   }
 
-  // Use date as seed for deterministic daily rotation
-  const today = new Date();
-  const dateSeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  // Generate room-specific shuffle using roomId as seed
+  // Convert roomId string to numeric seed (simple hash)
+  let roomSeed = 0;
+  for (let i = 0; i < roomId.length; i++) {
+    roomSeed = (roomSeed * 31 + roomId.charCodeAt(i)) % 1000000;
+  }
 
-  // Shuffle questions based on today's date
-  const shuffledQuestions = seededShuffle(questionPool, dateSeed);
+  const shuffledQuestions = seededShuffle(allQuestions, roomSeed);
+  const totalQuestions = shuffledQuestions.length;
 
-  // Select first question from shuffled pool
-  return shuffledQuestions[0]!;
+  // Start search from room's current position (default to 0 for old rooms)
+  let startIndex = (room.nextQuestionIndex ?? 0) % totalQuestions;
+  let selectedQuestion = null;
+  let selectedIndex = startIndex;
+
+  // Hybrid filtering: Try to find a question not in recent history
+  // Search up to 50 positions forward (with wraparound)
+  const maxSearchAttempts = Math.min(50, totalQuestions);
+
+  for (let attempt = 0; attempt < maxSearchAttempts; attempt++) {
+    const currentIndex = (startIndex + attempt) % totalQuestions;
+    const question: any = shuffledQuestions[currentIndex];
+
+    if (!recentQuestionIds.has(question._id)) {
+      // Found a question not in recent history
+      selectedQuestion = question;
+      selectedIndex = currentIndex;
+      break;
+    }
+  }
+
+  // Fallback: If no valid question found after searching, use the next question anyway
+  if (!selectedQuestion) {
+    selectedIndex = startIndex;
+    selectedQuestion = shuffledQuestions[startIndex];
+  }
+
+  // Increment room's question index for next group
+  // Move forward from the selected position (not just +1 from current)
+  const nextIndex = (selectedIndex + 1) % totalQuestions;
+  await ctx.db.patch(roomId, {
+    nextQuestionIndex: nextIndex,
+  });
+
+  return selectedQuestion;
 }
 
 // Cleanup expired group requests and reset user statuses
@@ -493,7 +528,7 @@ async function handleAcceptRequest(
 
   // Neither has a group, create a new one
   const memberIds = [args.acceptorId, args.requesterId];
-  const question = await selectQuestion(ctx, memberIds);
+  const question = await selectQuestion(ctx, args.room._id, memberIds);
 
   const groupId = await ctx.db.insert("groups", {
     roomId: args.room._id,

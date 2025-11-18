@@ -149,6 +149,7 @@ export const createRoom = mutation({
       phase1Active: false,
       phase1Duration: args.phase1Duration,
       maxGroupSize: args.maxGroupSize || 4,
+      nextQuestionIndex: 0,
       createdAt: now,
       expiresAt: now + fortyEightHours,
     });

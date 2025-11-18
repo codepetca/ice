@@ -11,6 +11,7 @@ export default defineSchema({
     phase1StartedAt: v.optional(v.number()),
     windingDownStartedAt: v.optional(v.number()), // When winding down period begins
     maxGroupSize: v.number(), // Maximum users per group (default 4)
+    nextQuestionIndex: v.optional(v.number()), // Tracks next question position in room's sequence (0-based, defaults to 0)
     createdAt: v.number(),
     expiresAt: v.number(), // Room expires after 7 days
   })
