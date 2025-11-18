@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -123,9 +124,16 @@ export default function Home() {
           className="w-full max-w-md space-y-10 sm:space-y-12"
         >
           <div className="text-center space-y-1">
-            <h1 className="text-4xl sm:text-6xl font-display font-bold text-foreground tracking-tight">
-              Ice
-            </h1>
+            <div className="flex justify-center">
+              <Image
+                src="/icewyrm.png"
+                alt="Ice"
+                width={200}
+                height={200}
+                priority
+                className="w-32 h-32 sm:w-48 sm:h-48"
+              />
+            </div>
           </div>
 
           <div className="space-y-4">

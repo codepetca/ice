@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, CSSProperties } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
@@ -566,9 +567,16 @@ export default function HostPage() {
             className="w-full space-y-8 sm:space-y-10"
           >
             <div className="text-center space-y-2">
-              <h1 className="text-4xl font-display font-bold text-foreground sm:text-5xl">
-                Ice
-              </h1>
+              <div className="flex justify-center">
+                <Image
+                  src="/icewyrm.png"
+                  alt="Ice"
+                  width={180}
+                  height={180}
+                  priority
+                  className="w-28 h-28 sm:w-36 sm:h-36"
+                />
+              </div>
             </div>
 
             <div className="space-y-8">

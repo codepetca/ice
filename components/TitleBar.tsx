@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Settings, Sun, Moon } from "lucide-react";
+import Link from "next/link";
+import Image from "next/image";
 import { useDarkMode } from "@/lib/useDarkMode";
 
 interface TitleBarProps {
@@ -24,8 +26,17 @@ export function TitleBar({ title, subtitle, showTitle = false }: TitleBarProps) 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/40">
       <div className="flex items-center justify-between px-4 py-3 sm:px-6">
-        {/* Left side - Title (optional) */}
-        <div className="flex-1">
+        {/* Left side - Logo and Title (optional) */}
+        <div className="flex-1 flex items-center gap-3">
+          <Link href="/" className="flex-shrink-0 hover:opacity-80 transition-opacity">
+            <Image
+              src="/icewyrm.png"
+              alt="Ice"
+              width={32}
+              height={32}
+              className="w-8 h-8"
+            />
+          </Link>
           {showTitle && title && (
             <div className="flex flex-col">
               <h1 className="text-lg font-semibold text-foreground sm:text-xl">
