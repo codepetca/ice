@@ -17,6 +17,7 @@ export const generateTestRoom = mutation({
       phase1Duration: 600, // 10 minutes
       phase1StartedAt: now - 600000, // Started 10 minutes ago (finished)
       maxGroupSize: 4,
+      nextQuestionIndex: 0,
       createdAt: now,
       expiresAt: now + fortyEightHours,
     });
