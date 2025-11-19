@@ -34,7 +34,7 @@ export type UserEvents =
   | { type: "CANCEL_REQUEST" }
   | { type: "JOINED_GROUP"; groupId: string; members: any[]; question: any }
   | { type: "SUBMIT_ANSWER"; value: string }
-  | { type: "LEAVE_GROUP" }
+  | { type: "ROUND_END" }
   | { type: "SESSION_LOCKED" }
   | { type: "START_PHASE2"; gameId: string; roundNumber: number; questionText: string }
   | { type: "SUBMIT_VOTE"; choice: string }
@@ -152,6 +152,10 @@ export const userMachine = setup({
           target: "question_active",
           actions: "setGroupInfo",
         },
+        ROUND_END: {
+          target: "browsing",
+          actions: "clearGroup",
+        },
         SESSION_LOCKED: "session_locked",
       },
     },
@@ -165,6 +169,10 @@ export const userMachine = setup({
           target: "question_active",
           actions: ["clearPendingRequest", "setGroupInfo"],
         },
+        ROUND_END: {
+          target: "browsing",
+          actions: ["clearPendingRequest", "clearGroup"],
+        },
         SESSION_LOCKED: "session_locked",
       },
     },
@@ -173,7 +181,7 @@ export const userMachine = setup({
         SUBMIT_ANSWER: {
           actions: "setAnswer",
         },
-        LEAVE_GROUP: {
+        ROUND_END: {
           target: "browsing",
           actions: "clearGroup",
         },

@@ -9,6 +9,7 @@ import { Keypad } from "@/components/Keypad";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
 import { TitleBar } from "@/components/TitleBar";
+import RoundProgressBar from "@/components/RoundProgressBar";
 
 export default function ProjectorPage() {
   const [roomCode, setClassCode] = useState("");
@@ -93,12 +94,13 @@ export default function ProjectorPage() {
     );
   }
 
-  const timeElapsed = room.phase1StartedAt
-    ? Math.max(0, Math.floor((Date.now() - room.phase1StartedAt) / 1000))
+  // Calculate time remaining in current round
+  const roundElapsed = room.roundStartedAt
+    ? Math.max(0, Math.floor((Date.now() - room.roundStartedAt) / 1000))
     : 0;
-  const timeRemaining = Math.max(0, room.phase1Duration - timeElapsed);
-  const minutes = Math.floor(timeRemaining / 60);
-  const seconds = timeRemaining % 60;
+  const roundTimeRemaining = Math.max(0, 30 - roundElapsed);
+  const minutes = Math.floor(roundTimeRemaining / 60);
+  const seconds = roundTimeRemaining % 60;
 
   // Phase 2 Slideshow
   if (game && game.status === "in_progress" && currentRound) {
@@ -201,20 +203,28 @@ export default function ProjectorPage() {
           </div>
         </motion.div>
 
-        {/* Timer */}
+        {/* Round Progress */}
         <AnimatePresence>
           {room.phase1Active && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className="text-center space-y-4"
+              className="text-center space-y-6"
             >
-              <div className="text-2xl text-accent-200 uppercase tracking-wider">
-                Time Remaining
+              <div className="text-4xl text-accent-200 uppercase tracking-wider">
+                Round {room.currentRound} / {room.phase1Rounds}
               </div>
               <div className="text-9xl font-bold tabular-nums">
                 {minutes}:{seconds.toString().padStart(2, "0")}
+              </div>
+              <div className="max-w-2xl mx-auto">
+                <div className="w-full h-8 bg-gray-700/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-100 ease-linear"
+                    style={{ width: `${(roundTimeRemaining / 30) * 100}%` }}
+                  />
+                </div>
               </div>
             </motion.div>
           )}

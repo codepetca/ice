@@ -17,6 +17,7 @@ import { SlideshowQuestion } from "@/components/SlideshowQuestion";
 import { TitleBar } from "@/components/TitleBar";
 import { AvatarDisplay } from "@/components/AvatarDisplay";
 import { WaitingScreen } from "@/components/WaitingScreen";
+import RoundProgressBar from "@/components/RoundProgressBar";
 
 function UserPageContent() {
   const searchParams = useSearchParams();
@@ -27,7 +28,6 @@ function UserPageContent() {
   const [avatarOptions, setAvatarOptions] = useState<string[]>([]);
   const [selectedAvatar, setSelectedAvatar] = useState("");
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
   const [checkingSession, setCheckingSession] = useState(true);
   const prevOutgoingRequestRef = useRef<any>(undefined);
   const hasCheckedSessionRef = useRef(false);
@@ -39,7 +39,6 @@ function UserPageContent() {
   const rejectGroupRequest = useMutation(api.groups.rejectGroupRequest);
   const cancelGroupRequest = useMutation(api.groups.cancelGroupRequest);
   const submitAnswer = useMutation(api.groups.submitAnswer);
-  const completeGroup = useMutation(api.groups.completeGroup);
 
   // Phase 2 mutations
   const submitVote = useMutation(api.games.submitVote);
@@ -308,23 +307,27 @@ function UserPageContent() {
     }
   }, [currentGroup, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Timer for group session
+  // Monitor round changes and trigger ROUND_END event
+  const prevRoundRef = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (!state.matches("question_active") || !currentGroup?.createdAt) {
-      setElapsedTime(0);
+    if (!room || !room.phase1Active) {
+      prevRoundRef.current = undefined;
       return;
     }
 
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const elapsed = Math.floor((now - currentGroup.createdAt) / 1000);
-      setElapsedTime(elapsed);
-    }, 1000);
+    // Detect when round number changes (indicates new round started)
+    if (prevRoundRef.current !== undefined && room.currentRound !== prevRoundRef.current) {
+      // Round changed - trigger ROUND_END to reset to browsing
+      if (state.matches("question_active") || state.matches("waiting_for_acceptance")) {
+        send({ type: "ROUND_END" });
+        showToast("Round ended! Find a new group", "info");
+      }
+    }
 
-    return () => clearInterval(interval);
-  }, [state, currentGroup?.createdAt]);
+    prevRoundRef.current = room.currentRound;
+  }, [room, room?.currentRound, state, send, showToast]);
 
-  // Auto-cancel waiting for acceptance after 30 seconds
+  // Auto-cancel waiting for acceptance after 10 seconds
   useEffect(() => {
     if (!state.matches("waiting_for_acceptance")) {
       return;
@@ -333,7 +336,7 @@ function UserPageContent() {
     const timeout = setTimeout(() => {
       handleCancelRequest();
       // Don't show toast here - the monitoring effect will show "Request expired"
-    }, 30000); // 30 seconds
+    }, 10000); // 10 seconds
 
     return () => clearTimeout(timeout);
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -526,17 +529,7 @@ function UserPageContent() {
     }
   };
 
-  const handleLeaveGroup = async () => {
-    if (!state.context.userId || !state.context.groupId) return;
-
-    await completeGroup({
-      userId: state.context.userId as Id<"users">,
-      groupId: state.context.groupId as Id<"groups">,
-    });
-
-    // Note: confetti and state updates now happen in the useEffect that monitors group completion
-    // This ensures all participants see the confetti, not just the user who clicked "Done"
-  };
+  // handleLeaveGroup removed - no longer needed with automatic round transitions
 
   // Phase 2 handler
   const handleSubmitVote = async (choice: string) => {
@@ -674,17 +667,15 @@ function UserPageContent() {
           />
         )}
 
-        {/* Winding down warning banner */}
-        {room?.windingDownStartedAt && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="fixed inset-x-0 top-0 z-40 p-2"
-          >
-            <div className="bg-orange-500 text-white rounded-xl shadow-lg p-4 text-center max-w-md mx-auto">
-              <div className="font-bold text-lg">⏰ Session ending soon!</div>
-            </div>
-          </motion.div>
+        {/* Round progress bar */}
+        {room && room.phase1Active && (
+          <div className="px-4 pt-4">
+            <RoundProgressBar
+              currentRound={room.currentRound}
+              totalRounds={room.phase1Rounds}
+              roundStartedAt={room.roundStartedAt}
+            />
+          </div>
         )}
 
         {/* Content area */}
@@ -709,9 +700,7 @@ function UserPageContent() {
                     <h3 className="text-2xl font-semibold text-gray-700 text-center">
                       Join up
                     </h3>
-                    {!room?.windingDownStartedAt && (
-                      <>
-                        <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                           {availableUsers.map((user) => {
                             const hasIncomingRequests = incomingRequests && incomingRequests.length > 0;
                             const isDisabled = hasIncomingRequests;
@@ -749,9 +738,7 @@ function UserPageContent() {
                               </motion.button>
                             );
                           })}
-                        </div>
-                      </>
-                    )}
+                    </div>
                   </>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
@@ -816,8 +803,6 @@ function UserPageContent() {
     const membersChosenA = members.filter((m: any) => m.answer === "A");
     const membersChosenB = members.filter((m: any) => m.answer === "B");
 
-    const canComplete = elapsedTime >= 60;
-
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-3 sm:p-8 bg-gradient-to-b from-yellow-50 to-white dark:from-gray-900 dark:to-gray-800">
         <TitleBar />
@@ -831,24 +816,19 @@ function UserPageContent() {
           />
         )}
 
-        {/* Winding down warning banner */}
-        {room?.windingDownStartedAt && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="fixed inset-x-0 top-0 z-40 p-2"
-          >
-            <div className="bg-orange-500 text-white rounded-xl shadow-lg p-4 text-center max-w-md mx-auto">
-              <div className="font-bold text-lg">⏰ Session ending soon!</div>
-            </div>
-          </motion.div>
-        )}
-
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-2xl space-y-3 sm:space-y-8"
         >
+          {/* Round progress bar */}
+          {room && room.phase1Active && (
+            <RoundProgressBar
+              currentRound={room.currentRound}
+              totalRounds={room.phase1Rounds}
+              roundStartedAt={room.roundStartedAt}
+            />
+          )}
           <div className="text-center">
             <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-8 leading-tight">
               {question?.text}
@@ -930,90 +910,6 @@ function UserPageContent() {
                   )}
                 </div>
               </motion.button>
-            </div>
-
-            {/* Progress button or warning */}
-            <div className="w-full">
-              {room?.windingDownStartedAt ? (
-                // Winding down - show warning instead of progress
-                <motion.div
-                  initial={{ scale: 0.95 }}
-                  animate={{ scale: [1, 1.02, 1] }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                  className="relative w-full h-12 sm:h-16 rounded-xl overflow-hidden ring-4 ring-orange-400 shadow-2xl"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-500" />
-                  <div className="relative z-10 flex items-center justify-center h-full">
-                    <p className="text-lg sm:text-2xl font-bold text-white drop-shadow-lg">
-                      ⏰ Session ending soon!
-                    </p>
-                  </div>
-                </motion.div>
-              ) : (
-                // Normal progress button
-                <motion.button
-                  whileTap={canComplete ? { scale: 0.95 } : {}}
-                  whileHover={canComplete ? { scale: 1.02 } : {}}
-                  onClick={handleLeaveGroup}
-                  disabled={!canComplete}
-                  animate={canComplete ? {
-                    boxShadow: [
-                      "0 10px 40px rgba(59, 130, 246, 0.5)",
-                      "0 10px 60px rgba(34, 197, 94, 0.6)",
-                      "0 10px 40px rgba(59, 130, 246, 0.5)"
-                    ]
-                  } : {}}
-                  transition={canComplete ? {
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  } : {}}
-                  className={`relative w-full h-12 sm:h-16 rounded-xl overflow-hidden transition-all ${
-                    canComplete
-                      ? "ring-4 ring-green-400 cursor-pointer shadow-2xl"
-                      : "shadow-lg cursor-not-allowed"
-                  }`}
-                >
-                  {/* Background fill */}
-                  <motion.div
-                    className={`absolute inset-0 ${
-                      canComplete
-                        ? "bg-gradient-to-r from-blue-500 via-green-500 to-blue-500 bg-[length:200%_100%]"
-                        : "bg-gradient-to-r from-blue-500 to-green-500"
-                    }`}
-                    initial={{ width: "0%" }}
-                    animate={
-                      canComplete
-                        ? {
-                            width: "100%",
-                            backgroundPosition: ["0% 0%", "100% 0%", "0% 0%"]
-                          }
-                        : { width: `${Math.min((elapsedTime / 60) * 100, 100)}%` }
-                    }
-                    transition={
-                      canComplete
-                        ? {
-                            width: { duration: 0.5 },
-                            backgroundPosition: { duration: 3, repeat: Infinity, ease: "linear" }
-                          }
-                        : { duration: 0.5 }
-                    }
-                  />
-                  {/* Gray background for unfilled portion */}
-                  <div className="absolute inset-0 bg-gray-300 -z-10" />
-
-                  {/* Button text */}
-                  <motion.div
-                    className="relative z-10 flex items-center justify-center h-full"
-                    animate={canComplete ? { scale: [1, 1.05, 1] } : {}}
-                    transition={canComplete ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
-                  >
-                    <p className="text-lg sm:text-2xl font-bold text-white drop-shadow-lg">
-                      {canComplete ? "Done" : "Choose and discuss"}
-                    </p>
-                  </motion.div>
-                </motion.button>
-              )}
             </div>
           </div>
         </motion.div>

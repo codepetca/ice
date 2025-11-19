@@ -28,8 +28,9 @@ function isUserInGroup(group: any, userId: string): boolean {
 
 // Calculate backoff time in milliseconds based on level
 function getBackoffTime(level: number): number {
-  // Exponential backoff: 1s, 2s, 4s, 8s, 16s (max)
-  return Math.min(Math.pow(2, level) * 1000, 16000);
+  // Shorter backoff for 30-second rounds: 0.5s, 1s, 2s, 4s (max)
+  const backoffTimes = [500, 1000, 2000, 4000];
+  return backoffTimes[Math.min(level, backoffTimes.length - 1)];
 }
 
 // Deterministic shuffle based on a seed (date)
@@ -306,11 +307,6 @@ export const sendGroupRequest = mutation({
       throw new Error("Room is not active");
     }
 
-    // Block joining groups during winding down period
-    if (room.windingDownStartedAt) {
-      throw new Error("Session is ending soon");
-    }
-
     // Block users who have a pending incoming request
     if (user.status === "pending_received") {
       throw new Error("Please respond to your incoming request first");
@@ -387,7 +383,7 @@ export const sendGroupRequest = mutation({
     }
 
     // Create the request
-    const expiresAt = now + 30000; // 30 seconds
+    const expiresAt = now + 10000; // 10 seconds (1/3 of 30-second round)
     await ctx.db.insert("groupRequests", {
       roomId: user.roomId,
       requesterId: args.userId,

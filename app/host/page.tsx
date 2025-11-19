@@ -46,7 +46,7 @@ export default function HostPage() {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const [view, setView] = useState<"create" | "manage">("create");
-  const [duration, setDuration] = useState(10); // minutes
+  const [rounds, setRounds] = useState(10); // number of 30-second rounds (default 10 = 5 minutes)
   const [maxGroupSize, setMaxGroupSize] = useState(4);
   const [showOptions, setShowOptions] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -65,7 +65,7 @@ export default function HostPage() {
   const createRoom = useMutation(api.rooms.createRoom);
   const startPhase1 = useMutation(api.rooms.startPhase1);
   const stopPhase1 = useMutation(api.rooms.stopPhase1);
-  const adjustPhase1Duration = useMutation(api.rooms.adjustPhase1Duration);
+  const adjustPhase1Rounds = useMutation(api.rooms.adjustPhase1Rounds);
   const seedQuestions = useMutation(api.questions.seedQuestions);
   const removeUser = useMutation(api.users.removeUser);
 
@@ -172,17 +172,7 @@ export default function HostPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-trigger winding down at 15 seconds remaining
-  useEffect(() => {
-    if (room && room.phase1Active && room.phase1StartedAt && !room.windingDownStartedAt) {
-      const timeElapsed = Math.floor((Date.now() - room.phase1StartedAt) / 1000);
-      const timeRemaining = room.phase1Duration - timeElapsed;
-
-      if (timeRemaining <= 15 && roomId && pin) {
-        handleStopPhase1(true); // Skip confirmation for auto-trigger
-      }
-    }
-  }, [room, currentTime, roomId, pin]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Auto-trigger removed - rounds now managed by backend cron timer
 
   // Slideshow auto-timer (host-driven)
   // Runs when game is in progress and manages stage transitions
@@ -282,7 +272,7 @@ export default function HostPage() {
 
       const result = await createRoom({
         name: internalName,
-        phase1Duration: duration * 60, // convert to seconds
+        phase1Rounds: rounds, // number of 30-second rounds
         maxGroupSize: maxGroupSize,
       });
 
@@ -381,14 +371,14 @@ export default function HostPage() {
     }
   };
 
-  const handleAdjustTime = async (minutes: number) => {
+  const handleAdjustRounds = async (adjustment: number) => {
     if (!roomId || !pin) return;
 
     try {
-      await adjustPhase1Duration({
+      await adjustPhase1Rounds({
         roomId: roomId as Id<"rooms">,
         pin,
-        adjustmentSeconds: minutes * 60
+        adjustment: adjustment
       });
     } catch (error: any) {
       showToast(error.message, "error");
@@ -471,19 +461,20 @@ export default function HostPage() {
       >
         <div className="space-y-2">
           <label className="block text-sm font-medium text-muted-foreground">
-            Duration
+            Number of Rounds
           </label>
           <select
-            value={duration}
-            onChange={(e) => setDuration(parseInt(e.target.value))}
+            value={rounds}
+            onChange={(e) => setRounds(parseInt(e.target.value))}
             className="w-full rounded-2xl border border-border/60 bg-background/60 px-4 py-3 text-base font-semibold text-foreground shadow-sm focus:border-success focus:outline-none sm:px-5 sm:py-4 sm:text-lg"
             style={selectStyle}
           >
-            <option value={5}>5 minutes</option>
-            <option value={10}>10 minutes</option>
-            <option value={15}>15 minutes</option>
-            <option value={20}>20 minutes</option>
-            <option value={30}>30 minutes</option>
+            <option value={5}>5 rounds (2.5 min)</option>
+            <option value={10}>10 rounds (5 min)</option>
+            <option value={15}>15 rounds (7.5 min)</option>
+            <option value={20}>20 rounds (10 min)</option>
+            <option value={30}>30 rounds (15 min)</option>
+            <option value={40}>40 rounds (20 min)</option>
           </select>
         </div>
 
@@ -629,21 +620,13 @@ export default function HostPage() {
 
   // Manage view - Always fullscreen
   if (view === "manage" && room) {
-    // Calculate winding down progress
-    const windingDownElapsed = room.windingDownStartedAt
-      ? Math.max(0, Math.floor((currentTime - room.windingDownStartedAt) / 1000))
+    // Calculate time remaining in current round
+    const roundElapsed = room.roundStartedAt && room.phase1Active
+      ? Math.max(0, Math.floor((currentTime - room.roundStartedAt) / 1000))
       : 0;
-    const windingDownRemaining = Math.max(0, 15 - windingDownElapsed);
-
-    // Use winding down time if in winding down mode, otherwise use normal time
-    const timeElapsed = room.phase1StartedAt && room.phase1Active
-      ? Math.max(0, Math.floor((currentTime - room.phase1StartedAt) / 1000))
-      : 0;
-    const normalTimeRemaining = Math.max(0, room.phase1Duration - timeElapsed);
-
-    const timeRemaining = room.windingDownStartedAt ? windingDownRemaining : normalTimeRemaining;
-    const minutes = Math.floor(timeRemaining / 60);
-    const seconds = timeRemaining % 60;
+    const roundTimeRemaining = Math.max(0, 30 - roundElapsed);
+    const minutes = Math.floor(roundTimeRemaining / 60);
+    const seconds = roundTimeRemaining % 60;
 
     // State 1: Ready to Start Game (Phase 1 not started yet)
     if (!room.phase1StartedAt) {
@@ -668,28 +651,33 @@ export default function HostPage() {
               className="text-center space-y-16"
             >
 
-              {/* Timer with controls */}
+              {/* Round count controls */}
               <div className="flex items-center justify-center gap-6 sm:gap-8 md:gap-12 lg:gap-16 mb-8">
-                {/* Decrease time button - left side */}
+                {/* Decrease rounds button - left side */}
                 <button
-                  onClick={() => handleAdjustTime(-1)}
-                  disabled={room.phase1Duration <= 60}
+                  onClick={() => handleAdjustRounds(-1)}
+                  disabled={room.phase1Rounds <= 1}
                   className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  aria-label="Decrease time by 1 minute"
+                  aria-label="Decrease rounds by 1"
                 >
                   <Minus className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" />
                 </button>
 
-                <div className="text-7xl sm:text-8xl md:text-9xl lg:text-9xl xl:text-9xl font-bold tabular-nums text-foreground">
-                  {Math.floor(room.phase1Duration / 60).toString().padStart(2, "0")}:{(room.phase1Duration % 60).toString().padStart(2, "0")}
+                <div className="flex flex-col items-center">
+                  <div className="text-7xl sm:text-8xl md:text-9xl lg:text-9xl xl:text-9xl font-bold tabular-nums text-foreground">
+                    {room.phase1Rounds}
+                  </div>
+                  <div className="text-lg sm:text-xl text-foreground/60 mt-2">
+                    {room.phase1Rounds === 1 ? 'round' : 'rounds'} ({Math.floor(room.phase1Rounds * 30 / 60)} min)
+                  </div>
                 </div>
 
-                {/* Increase time button - right side */}
+                {/* Increase rounds button - right side */}
                 <button
-                  onClick={() => handleAdjustTime(1)}
-                  disabled={room.phase1Duration >= 1200}
+                  onClick={() => handleAdjustRounds(1)}
+                  disabled={room.phase1Rounds >= 40}
                   className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  aria-label="Increase time by 1 minute"
+                  aria-label="Increase rounds by 1"
                 >
                   <Plus className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" />
                 </button>
@@ -766,31 +754,37 @@ export default function HostPage() {
               className="text-center space-y-16"
             >
 
-              {/* Timer with controls */}
-              <div className="flex items-center justify-center gap-6 sm:gap-8 md:gap-12 lg:gap-16 mb-8">
-                {/* Decrease time button - left side */}
-                <button
-                  onClick={() => handleAdjustTime(-1)}
-                  disabled={timeRemaining < 60 || !!room.windingDownStartedAt}
-                  className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  aria-label="Decrease time by 1 minute"
-                >
-                  <Minus className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" />
-                </button>
-
-                <div className={`text-7xl sm:text-8xl md:text-9xl lg:text-9xl xl:text-9xl font-bold tabular-nums ${room.windingDownStartedAt ? 'text-orange-500' : 'text-foreground'}`}>
-                  {minutes.toString().padStart(2, "0")}:{seconds.toString().padStart(2, "0")}
+              {/* Round info with controls */}
+              <div className="flex flex-col items-center gap-4 mb-8">
+                <div className="text-3xl font-semibold text-foreground/60">
+                  Round {room.currentRound}/{room.phase1Rounds}
                 </div>
 
-                {/* Increase time button - right side */}
-                <button
-                  onClick={() => handleAdjustTime(1)}
-                  disabled={room.phase1Duration >= 1200 || !!room.windingDownStartedAt}
-                  className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  aria-label="Increase time by 1 minute"
-                >
-                  <Plus className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" />
-                </button>
+                <div className="flex items-center justify-center gap-6 sm:gap-8 md:gap-12 lg:gap-16">
+                  {/* Decrease rounds button - left side */}
+                  <button
+                    onClick={() => handleAdjustRounds(-1)}
+                    disabled={room.phase1Rounds <= 1}
+                    className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    aria-label="Decrease total rounds by 1"
+                  >
+                    <Minus className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" />
+                  </button>
+
+                  <div className="text-7xl sm:text-8xl md:text-9xl lg:text-9xl xl:text-9xl font-bold tabular-nums text-foreground">
+                    {minutes.toString().padStart(2, "0")}:{seconds.toString().padStart(2, "0")}
+                  </div>
+
+                  {/* Increase rounds button - right side */}
+                  <button
+                    onClick={() => handleAdjustRounds(1)}
+                    disabled={room.phase1Rounds >= 40}
+                    className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    aria-label="Increase total rounds by 1"
+                  >
+                    <Plus className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" />
+                  </button>
+                </div>
               </div>
 
               {/* Participant count - centered below clock */}

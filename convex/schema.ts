@@ -7,9 +7,10 @@ export default defineSchema({
     pin: v.string(), // Owner PIN for access
     name: v.string(),
     phase1Active: v.boolean(),
-    phase1Duration: v.number(), // in seconds
+    phase1Rounds: v.number(), // Number of 30-second rounds (default 10)
+    currentRound: v.number(), // Current round number (0 = not started, 1+ = active)
+    roundStartedAt: v.optional(v.number()), // When current round started
     phase1StartedAt: v.optional(v.number()),
-    windingDownStartedAt: v.optional(v.number()), // When winding down period begins
     maxGroupSize: v.number(), // Maximum users per group (default 4)
     nextQuestionIndex: v.optional(v.number()), // Tracks next question position in room's sequence (0-based, defaults to 0)
     createdAt: v.number(),

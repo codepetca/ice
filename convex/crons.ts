@@ -10,6 +10,13 @@ crons.interval(
   internal.groups.cleanupExpiredRequests
 );
 
+// Enforce round timers every 5 seconds
+crons.interval(
+  "enforce round timers",
+  { seconds: 5 },
+  internal.rooms.enforceRoundTimers
+);
+
 // Cleanup expired rooms daily at 3 AM
 crons.daily(
   "cleanup expired rooms",
