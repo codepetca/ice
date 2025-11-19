@@ -449,7 +449,7 @@ function UserPageContent() {
       }
     } catch (error: any) {
       // Show rate limit errors as info instead of error
-      if (error.message === "Please wait...") {
+      if (error.message === "Please wait..." || error.message === "Please wait before sending another request") {
         showToast(error.message, "info");
       } else {
         showToast(error.message, "error");
