@@ -227,6 +227,53 @@ If you get errors like `[CONVEX Q(functionName)] Server Error`, it usually means
 npm run deploy:prod  # Deploys Convex, then builds Next.js
 ```
 
+## Closing the App for Production
+
+You can temporarily close public access to the app (e.g., between class sessions) while maintaining access for yourself as a developer.
+
+### Environment Variables
+
+Add these to your Vercel project → Settings → Environment Variables:
+
+- **`APP_CLOSED`** - Set to `"true"` or `"1"` to close the app, or `"false"` (or leave unset) to open it
+- **`APP_BYPASS_SECRET`** (optional) - A secret token that allows you to bypass the closed state
+
+### How It Works
+
+**When `APP_CLOSED="true"`:**
+- All public routes show a "We'll be back soon" page
+- The app is completely inaccessible to the public
+- Next.js assets and the closed page itself are still served
+
+**When `APP_CLOSED="false"` or unset:**
+- The app behaves normally
+- No blocking or redirection occurs
+
+**Bypass Access (when `APP_BYPASS_SECRET` is set):**
+- Visit `https://your-app.vercel.app/bypass?token=YOUR_SECRET`
+- This sets a bypass cookie that lasts 7 days
+- You'll be redirected to the home page and can use the app normally
+- All subsequent navigation works as if the app is open
+
+### Usage Examples
+
+**To close the app:**
+1. Go to Vercel → Your Project → Settings → Environment Variables
+2. Set `APP_CLOSED` to `"true"`
+3. Redeploy (or wait for auto-redeploy if enabled)
+
+**To re-open the app:**
+1. Set `APP_CLOSED` to `"false"` or remove the variable
+2. Redeploy
+
+**To access the app while it's closed:**
+1. Set `APP_BYPASS_SECRET` to a secret value (e.g., `"my-secret-123"`)
+2. Redeploy
+3. Visit `https://your-app.vercel.app/bypass?token=my-secret-123`
+4. You'll be able to use the app normally for 7 days
+
+**Security Note:** The bypass mechanism is intentionally simple and not cryptographically secure. It's designed to keep casual users out, not to provide high-security access control. Don't rely on it for sensitive data protection.
+
 ## Future Enhancements
 
 - **Question Management UI**: Host interface to add/edit/disable questions in-app
