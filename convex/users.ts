@@ -9,9 +9,15 @@ function generateUserCode(): number {
 export const joinRoom = mutation({
   args: {
     roomCode: v.string(),
+    displayName: v.string(),
     avatar: v.string(),
   },
   handler: async (ctx, args) => {
+    // Validate display name
+    if (!args.displayName || args.displayName.trim().length === 0) {
+      throw new Error("Display name is required");
+    }
+
     // Find the room
     const room = await ctx.db
       .query("rooms")
@@ -40,12 +46,17 @@ export const joinRoom = mutation({
         .first();
     }
 
+    // Check if game is active (late joiner)
+    const isLateJoiner = room.phase1Active && room.currentRound > 0;
+
     const userId = await ctx.db.insert("users", {
       roomId: room._id,
+      displayName: args.displayName.trim(),
       avatar: args.avatar,
       code,
       joinedAt: Date.now(),
-      status: "available",
+      status: isLateJoiner ? "waiting_for_round" : "available",
+      isLateJoiner: isLateJoiner || undefined,
     });
 
     return { userId, code, roomId: room._id };
@@ -217,6 +228,7 @@ export const validateUserSession = query({
       user: {
         userId: user._id,
         roomId: room._id,
+        displayName: user.displayName,
         avatar: user.avatar,
         code: user.code,
       },
@@ -252,23 +264,21 @@ export const rejoinRoom = mutation({
     if (user.currentGroupId) {
       const group = await ctx.db.get(user.currentGroupId);
 
-      // If group exists and is still active, rejoin it
-      if (group && (group.status === "active" || group.status === "in_question" || group.status === "talking")) {
-        await ctx.db.patch(args.userId, {
-          status: "in_group",
-          // Keep currentGroupId to preserve membership
-        });
+      // If group exists and is in current round, rejoin it
+      if (group && group.roundIndex === room.currentRound) {
+        // Keep status as is (likely "in_group")
+        // User can rejoin their current group
       } else {
-        // Group is completed or doesn't exist, reset user
+        // Group is from previous round or doesn't exist, reset user
         await ctx.db.patch(args.userId, {
-          status: "available",
+          status: room.phase1Active ? "waiting_for_round" : "available",
           currentGroupId: undefined,
         });
       }
     } else {
-      // No group to rejoin, reset to available
+      // No group to rejoin
       await ctx.db.patch(args.userId, {
-        status: "available",
+        status: room.phase1Active ? "waiting_for_round" : "available",
         currentGroupId: undefined,
       });
     }
@@ -278,6 +288,7 @@ export const rejoinRoom = mutation({
       roomId: room._id,
       code: user.code,
       avatar: user.avatar,
+      displayName: user.displayName,
     };
   },
 });
@@ -291,48 +302,7 @@ export const leaveRoom = mutation({
     const user = await ctx.db.get(args.userId);
     if (!user) throw new Error("User not found");
 
-    // If user is in a group, remove them from it
-    if (user.currentGroupId) {
-      const group = await ctx.db.get(user.currentGroupId);
-      if (group && group.status !== "completed") {
-        // Mark the group as completed if user leaves
-        await ctx.db.patch(user.currentGroupId, {
-          status: "completed",
-          completedAt: Date.now(),
-        });
-      }
-    }
-
-    // Cancel any pending requests
-    const outgoingRequests = await ctx.db
-      .query("groupRequests")
-      .withIndex("by_room_and_requester", (q) =>
-        q.eq("roomId", user.roomId).eq("requesterId", args.userId)
-      )
-      .filter((q) => q.eq(q.field("status"), "pending"))
-      .collect();
-
-    for (const request of outgoingRequests) {
-      await ctx.db.patch(request._id, {
-        status: "cancelled",
-      });
-    }
-
-    const incomingRequests = await ctx.db
-      .query("groupRequests")
-      .withIndex("by_room_and_target", (q) =>
-        q.eq("roomId", user.roomId).eq("targetId", args.userId)
-      )
-      .filter((q) => q.eq(q.field("status"), "pending"))
-      .collect();
-
-    for (const request of incomingRequests) {
-      await ctx.db.patch(request._id, {
-        status: "cancelled",
-      });
-    }
-
-    // Delete the user
+    // Delete the user (groups will be auto-dissolved on round end)
     await ctx.db.delete(args.userId);
 
     return { success: true };

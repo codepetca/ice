@@ -10,7 +10,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/components/Toast";
-import { RequestBanner } from "@/components/RequestBanner";
 import { getRandomAvatars } from "@/lib/avatars";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SlideshowQuestion } from "@/components/SlideshowQuestion";
@@ -18,6 +17,7 @@ import { TitleBar } from "@/components/TitleBar";
 import { AvatarDisplay } from "@/components/AvatarDisplay";
 import { WaitingScreen } from "@/components/WaitingScreen";
 import RoundProgressBar from "@/components/RoundProgressBar";
+import { NameMatchingUI } from "@/components/NameMatchingUI";
 
 function UserPageContent() {
   const searchParams = useSearchParams();
@@ -27,37 +27,25 @@ function UserPageContent() {
   const [roomCode] = useState(searchParams.get("roomCode") || "");
   const [avatarOptions, setAvatarOptions] = useState<string[]>([]);
   const [selectedAvatar, setSelectedAvatar] = useState("");
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [joinStep, setJoinStep] = useState<"name" | "avatar">("name");
   const [checkingSession, setCheckingSession] = useState(true);
-  const prevOutgoingRequestRef = useRef<any>(undefined);
   const hasCheckedSessionRef = useRef(false);
 
+  // Mutations
   const joinRoom = useMutation(api.users.joinRoom);
   const rejoinRoom = useMutation(api.users.rejoinRoom);
-  const sendGroupRequest = useMutation(api.groups.sendGroupRequest);
-  const acceptGroupRequest = useMutation(api.groups.acceptGroupRequest);
-  const rejectGroupRequest = useMutation(api.groups.rejectGroupRequest);
-  const cancelGroupRequest = useMutation(api.groups.cancelGroupRequest);
+  const submitNameSelection = useMutation(api.groups.submitNameSelection);
+  const validateNameMatching = useMutation(api.groups.validateNameMatching);
   const submitAnswer = useMutation(api.groups.submitAnswer);
-
-  // Phase 2 mutations
   const submitVote = useMutation(api.games.submitVote);
   const leaveRoom = useMutation(api.users.leaveRoom);
 
+  // Queries
   const validateUserSession = useQuery(
     api.users.validateUserSession,
     state.context.userId && roomCode
       ? { userId: state.context.userId as Id<"users">, roomCode }
-      : "skip"
-  );
-
-  const availableUsers = useQuery(
-    api.groups.getAvailableUsers,
-    state.context.userId && state.context.roomId
-      ? {
-          roomId: state.context.roomId as Id<"rooms">,
-          excludeUserId: state.context.userId as Id<"users">,
-        }
       : "skip"
   );
 
@@ -74,16 +62,6 @@ function UserPageContent() {
   const takenAvatars = useQuery(
     api.users.getTakenAvatars,
     roomCode ? { roomCode } : "skip"
-  );
-
-  const incomingRequests = useQuery(
-    api.groups.getIncomingRequests,
-    state.context.userId ? { userId: state.context.userId as Id<"users"> } : "skip"
-  );
-
-  const outgoingRequest = useQuery(
-    api.groups.getOutgoingRequest,
-    state.context.userId ? { userId: state.context.userId as Id<"users"> } : "skip"
   );
 
   // Phase 2 queries
@@ -129,7 +107,6 @@ function UserPageContent() {
         return;
       }
 
-      // Prevent duplicate checks in React Strict Mode
       if (hasCheckedSessionRef.current) {
         return;
       }
@@ -143,7 +120,7 @@ function UserPageContent() {
         }
 
         const sessionData = JSON.parse(savedSession);
-        const { userId, avatar, code: userCode, roomId } = sessionData;
+        const { userId } = sessionData;
 
         const result = await rejoinRoom({ userId, roomCode });
 
@@ -152,13 +129,13 @@ function UserPageContent() {
           userId: result.userId,
           roomId: result.roomId,
           code: result.code,
+          displayName: result.displayName,
           avatar: result.avatar,
         });
 
         showToast("Welcome back!", "success");
       } catch (error: any) {
         localStorage.removeItem(`ice_user_${roomCode}`);
-        // Session expired or invalid - user will need to rejoin
       } finally {
         setCheckingSession(false);
       }
@@ -181,7 +158,7 @@ function UserPageContent() {
       room &&
       !room.phase1Active &&
       room.phase1StartedAt &&
-      (state.matches("browsing") || state.matches("question_active"))
+      (state.matches("waiting_for_round_start") || state.matches("name_matching") || state.matches("question_active"))
     ) {
       send({ type: "SESSION_LOCKED" });
     }
@@ -202,30 +179,22 @@ function UserPageContent() {
         questionText: currentRound.round.questionText,
       });
     }
-  }, [game, currentRound, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [game, currentRound, state, send]);
 
   // Phase 2: Auto-transition to waiting after voting
   useEffect(() => {
-    if (
-      state.matches("phase2_voting") &&
-      hasVoted === true
-    ) {
-      send({ type: "SUBMIT_VOTE", choice: "dummy" }); // Choice already submitted via mutation
+    if (state.matches("phase2_voting") && hasVoted === true) {
+      send({ type: "SUBMIT_VOTE", choice: "dummy" });
     }
   }, [hasVoted, state, send]);
 
   // Phase 2: Monitor round advancement
   useEffect(() => {
-    if (
-      state.matches("phase2_waiting") &&
-      gameState?.game
-    ) {
-      // Check if we moved to a new round
+    if (state.matches("phase2_waiting") && gameState?.game) {
       const currentInState = state.context.currentRoundNumber;
       const currentInGame = gameState.game.currentRound;
 
       if (currentInGame > currentInState!) {
-        // New round started
         if (currentRound) {
           send({
             type: "NEXT_ROUND",
@@ -246,9 +215,9 @@ function UserPageContent() {
     ) {
       send({ type: "GAME_COMPLETE" });
     }
-  }, [game, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [game, state, send]);
 
-  // Phase 2: Monitor room reset (when admin resets room)
+  // Phase 2: Monitor room reset
   useEffect(() => {
     if (
       room &&
@@ -258,54 +227,36 @@ function UserPageContent() {
        state.matches("phase2_voting") ||
        state.matches("phase2_complete"))
     ) {
-      // Room was reset - transition back to browsing
       send({ type: "ROOM_RESET" });
       showToast("Room reset", "info");
     }
-  }, [room?.phase1StartedAt, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [room?.phase1StartedAt, state, send, showToast]);
 
-  // Monitor group status - detect when group is created/joined or completed
+  // Monitor group status - detect when group is assigned or round ends
   useEffect(() => {
-    // If we're in a group state but currentGroup is null, group was completed
-    if (!currentGroup && state.context.userId) {
-      if (state.matches("question_active")) {
-        setElapsedTime(0);
-        setSelectedUser(null);
-        send({ type: "LEAVE_GROUP" });
-        showToast("Join another group!", "info");
+    if (!state.context.userId) return;
 
-        // Show confetti for all participants
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
-      }
-      return;
-    }
+    // Check if we're in waiting_for_round_start and group is assigned
+    if (state.matches("waiting_for_round_start") && currentGroup?.groupId) {
+      const myUserId = state.context.userId;
+      const nameChoices = currentGroup.nameChoicesByPlayer?.[myUserId] || {};
 
-    if (!currentGroup) return;
-
-    // If we're browsing and we have a group, transition to group
-    if (state.matches("browsing") && currentGroup.groupId) {
       send({
-        type: "JOINED_GROUP",
+        type: "START_NAME_MATCHING",
         groupId: currentGroup.groupId,
-        members: currentGroup.members,
-        question: currentGroup.question,
+        members: currentGroup.members.filter((m: any) => m.userId !== myUserId),
+        nameChoices,
       });
     }
 
-    // If waiting for acceptance and we have a group, transition to group
-    if (state.matches("waiting_for_acceptance") && currentGroup.groupId) {
+    // Check if we're in name_matching and group advanced to WYR
+    if (state.matches("name_matching") && currentGroup?.phase === "wyr" && currentGroup?.question) {
       send({
-        type: "JOINED_GROUP",
-        groupId: currentGroup.groupId,
-        members: currentGroup.members,
+        type: "ADVANCE_TO_WYR",
         question: currentGroup.question,
       });
     }
-  }, [currentGroup, state, send]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentGroup, state, send]);
 
   // Monitor round changes and trigger ROUND_END event
   const prevRoundRef = useRef<number | undefined>(undefined);
@@ -315,87 +266,33 @@ function UserPageContent() {
       return;
     }
 
-    // Detect when round number changes (indicates new round started)
     if (prevRoundRef.current !== undefined && room.currentRound !== prevRoundRef.current) {
-      // Round changed - trigger ROUND_END to reset to browsing
-      if (state.matches("question_active") || state.matches("waiting_for_acceptance")) {
+      if (state.matches("question_active") || state.matches("name_matching")) {
         send({ type: "ROUND_END" });
-        showToast("Round ended! Find a new group", "info");
+        showToast("New round starting!", "info");
       }
     }
 
     prevRoundRef.current = room.currentRound;
   }, [room, room?.currentRound, state, send, showToast]);
 
-  // Auto-cancel waiting for acceptance after 10 seconds
-  useEffect(() => {
-    if (!state.matches("waiting_for_acceptance")) {
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      handleCancelRequest();
-      // Don't show toast here - the monitoring effect will show "Request expired"
-    }, 10000); // 10 seconds
-
-    return () => clearTimeout(timeout);
-  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Monitor outgoing request and auto-cancel if rejected/expired
-  useEffect(() => {
-    if (!state.matches("waiting_for_acceptance")) {
-      prevOutgoingRequestRef.current = undefined;
-      return;
-    }
-
-    // Check if request status changed from pending to something else
-    const prevStatus = prevOutgoingRequestRef.current?.status;
-    const currentStatus = outgoingRequest?.status;
-
-    if (prevStatus === "pending" && currentStatus && currentStatus !== "pending") {
-      // Don't show message if we're actually joining a group
-      if (!currentGroup?.groupId) {
-        send({ type: "CANCEL_REQUEST" });
-        setSelectedUser(null);
-
-        // Show specific message based on status
-        if (currentStatus === "rejected") {
-          showToast("Request was declined", "info");
-        } else if (currentStatus === "expired") {
-          showToast("Request expired", "info");
-        } else if (currentStatus === "cancelled") {
-          showToast("Request was cancelled", "info");
-        }
-      }
-    }
-
-    // Also check if request disappeared entirely
-    const hadRequest = prevOutgoingRequestRef.current !== undefined && prevOutgoingRequestRef.current !== null;
-    const requestGone = outgoingRequest === null;
-
-    if (hadRequest && requestGone && prevStatus === "pending") {
-      // Don't show message if we're actually joining a group
-      if (!currentGroup?.groupId) {
-        send({ type: "CANCEL_REQUEST" });
-        setSelectedUser(null);
-        showToast("Request expired", "info");
-      }
-    }
-
-    // Update ref for next comparison
-    prevOutgoingRequestRef.current = outgoingRequest;
-  }, [outgoingRequest, state, send, currentGroup]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  // Handle joining room
   const handleJoinRoom = async () => {
-    if (!roomCode || !selectedAvatar) return;
+    if (!roomCode || !selectedAvatar || !displayName.trim()) return;
 
     try {
-      const result = await joinRoom({ roomCode, avatar: selectedAvatar });
+      const result = await joinRoom({
+        roomCode,
+        displayName: displayName.trim(),
+        avatar: selectedAvatar,
+      });
+
       send({
         type: "JOIN_ROOM",
         userId: result.userId,
         roomId: result.roomId,
         code: result.code,
+        displayName: displayName.trim(),
         avatar: selectedAvatar,
       });
 
@@ -404,13 +301,13 @@ function UserPageContent() {
         JSON.stringify({
           userId: result.userId,
           avatar: selectedAvatar,
+          displayName: displayName.trim(),
           code: result.code,
           roomId: result.roomId,
           lastJoined: Date.now(),
         })
       );
     } catch (error: any) {
-      // Show error and redirect back to home if room doesn't exist
       showToast(error.message, "error");
       if (error.message === "Room not found") {
         setTimeout(() => {
@@ -422,105 +319,67 @@ function UserPageContent() {
 
   // Auto-join when avatar is selected
   useEffect(() => {
-    if (selectedAvatar && !state.context.userId) {
+    if (selectedAvatar && displayName.trim() && !state.context.userId) {
       handleJoinRoom();
     }
   }, [selectedAvatar]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSendRequest = async (targetId: string) => {
-    if (!state.context.userId) return;
+  // Handle name matching validation
+  const handleNameMatchingSubmit = async (selections: Record<string, string>) => {
+    if (!state.context.userId || !currentGroup?.groupId) {
+      return { success: false };
+    }
 
     try {
-      const result = await sendGroupRequest({
+      // Submit all selections
+      for (const [targetUserId, selectedName] of Object.entries(selections)) {
+        await submitNameSelection({
+          groupId: currentGroup.groupId as Id<"groups">,
+          userId: state.context.userId as Id<"users">,
+          targetUserId: targetUserId as Id<"users">,
+          selectedName,
+        });
+      }
+
+      // Validate (this marks us as submitted, validates only when all submit)
+      const result = await validateNameMatching({
+        groupId: currentGroup.groupId as Id<"groups">,
         userId: state.context.userId as Id<"users">,
-        targetId: targetId as Id<"users">,
       });
 
-      if (result.success) {
-        if ("createdGroup" in result || "joinedGroup" in result) {
-          // Automatically joined/created group
-          send({
-            type: "JOINED_GROUP",
-            groupId: (result as any).groupId!,
-            members: (result as any).members || [],
-            question: (result as any).question,
-          });
+      if (result.waitingForOthers) {
+        showToast(`Submitted! Waiting for ${result.totalCount - result.submittedCount} more...`, "info");
+        return { success: true, waitingForOthers: true };
+      }
+
+      if (result.validated) {
+        if (result.allCorrect) {
+          showToast("Everyone got it! Moving to question...", "success");
+          return { success: true };
+        } else if (result.success) {
+          showToast("You got them all correct! Waiting for others to retry...", "success");
+          return { success: true };
         } else {
-          // Request sent, waiting for acceptance
-          send({ type: "SEND_REQUEST", targetId });
+          showToast("Some names were wrong - check the highlighted ones", "error");
+          return { success: false, incorrectAvatars: result.incorrectAvatars };
         }
       }
-    } catch (error: any) {
-      // Show rate limit errors as info instead of error
-      if (error.message === "Please wait...") {
-        showToast(error.message, "info");
-      } else {
-        showToast(error.message, "error");
-      }
-      setSelectedUser(null);
-    }
-  };
 
-  const handleCancelRequest = async () => {
-    if (!state.context.userId) return;
-
-    try {
-      await cancelGroupRequest({ userId: state.context.userId as Id<"users"> });
-      send({ type: "CANCEL_REQUEST" });
-      setSelectedUser(null);
+      return result;
     } catch (error: any) {
       showToast(error.message, "error");
+      return { success: false };
     }
   };
 
-  const handleAcceptRequest = async (requestId: string) => {
-    if (!state.context.userId) return;
-
-    const wasAlreadyInGroup = !!currentGroup?.groupId;
-
-    try {
-      const result = await acceptGroupRequest({
-        userId: state.context.userId as Id<"users">,
-        requestId: requestId as Id<"groupRequests">,
-      });
-
-      if (result.success) {
-        // Only send JOINED_GROUP event if we weren't already in a group
-        if (!wasAlreadyInGroup) {
-          send({
-            type: "JOINED_GROUP",
-            groupId: (result as any).groupId!,
-            members: (result as any).members || [],
-            question: (result as any).question,
-          });
-        }
-      }
-    } catch (error: any) {
-      showToast(error.message, "error");
-    }
-  };
-
-  const handleRejectRequest = async (requestId: string) => {
-    if (!state.context.userId) return;
-
-    try {
-      await rejectGroupRequest({
-        userId: state.context.userId as Id<"users">,
-        requestId: requestId as Id<"groupRequests">,
-      });
-      showToast("Request declined", "info");
-    } catch (error: any) {
-      showToast(error.message, "error");
-    }
-  };
-
+  // Handle answer submission
   const handleSubmitAnswer = async (choice: string) => {
-    if (!choice || !state.context.groupId || !state.context.userId) return;
+    if (!choice || !currentGroup?.groupId || !state.context.userId) return;
 
     try {
       await submitAnswer({
         userId: state.context.userId as Id<"users">,
-        groupId: state.context.groupId as Id<"groups">,
+        groupId: currentGroup.groupId as Id<"groups">,
         choice,
       });
       send({ type: "SUBMIT_ANSWER", value: choice });
@@ -528,8 +387,6 @@ function UserPageContent() {
       showToast(error.message, "error");
     }
   };
-
-  // handleLeaveGroup removed - no longer needed with automatic round transitions
 
   // Phase 2 handler
   const handleSubmitVote = async (choice: string) => {
@@ -553,30 +410,82 @@ function UserPageContent() {
 
     try {
       await leaveRoom({ userId: state.context.userId as Id<"users"> });
-      // Clear local storage
       localStorage.removeItem(`ice_user_${roomCode}`);
-      // Navigate to landing page
       router.push("/");
     } catch (error: any) {
       showToast(error.message, "error");
     }
   };
 
-  // Not joined state
+  // ============================================================================
+  // RENDERING
+  // ============================================================================
+
+  // Not joined state - display name entry then avatar selection
   if (state.matches("not_joined")) {
     if (checkingSession) {
       return (
         <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <LoadingSpinner size="lg" />
           </motion.div>
         </main>
       );
     }
 
+    // Display name entry step
+    if (joinStep === "name") {
+      return (
+        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+          <TitleBar />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-md space-y-8"
+          >
+            <div className="text-center space-y-4">
+              <p className="text-xs sm:text-sm font-sans text-muted-foreground uppercase tracking-[0.3em]">
+                {roomCode}
+              </p>
+              <p className="text-xl font-sans text-gray-600 dark:text-gray-300">
+                What's your name?
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Enter your name"
+                maxLength={20}
+                className="w-full px-6 py-4 text-2xl text-center rounded-2xl border-4 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:border-purple-500 dark:focus:border-purple-400 transition-colors"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && displayName.trim()) {
+                    setJoinStep("avatar");
+                  }
+                }}
+              />
+
+              <button
+                onClick={() => setJoinStep("avatar")}
+                disabled={!displayName.trim()}
+                className={`w-full py-4 rounded-xl text-xl font-bold shadow-lg transition-all ${
+                  displayName.trim()
+                    ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 active:scale-95"
+                    : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                }`}
+              >
+                Continue
+              </button>
+            </div>
+          </motion.div>
+        </main>
+      );
+    }
+
+    // Avatar selection step
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         <TitleBar />
@@ -589,7 +498,9 @@ function UserPageContent() {
             <p className="text-xs sm:text-sm font-sans text-muted-foreground uppercase tracking-[0.3em]">
               {roomCode}
             </p>
-            <p className="text-xl font-sans text-gray-600">Choose your avatar</p>
+            <p className="text-xl font-sans text-gray-600 dark:text-gray-300">
+              Hi {displayName}! Choose your avatar
+            </p>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
@@ -619,16 +530,25 @@ function UserPageContent() {
               <LoadingSpinner size="sm" />
             </motion.div>
           )}
+
+          <button
+            onClick={() => setJoinStep("name")}
+            className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          >
+            Back to change name
+          </button>
         </motion.div>
       </main>
     );
   }
 
-  // Browsing state
-  if (state.matches("browsing")) {
-    if (room && !room.phase1Active) {
-      const userAvatar = state.context.avatar || selectedAvatar;
+  // Waiting for round start state
+  if (state.matches("waiting_for_round_start")) {
+    const userAvatar = state.context.avatar || selectedAvatar;
+    const userName = state.context.displayName || displayName;
 
+    // Before game starts
+    if (room && !room.phase1Active) {
       return (
         <main className="flex min-h-screen flex-col items-center p-8 bg-background">
           <TitleBar />
@@ -640,34 +560,22 @@ function UserPageContent() {
             <div className="mb-6">
               <AvatarDisplay avatar={userAvatar} size="lg" />
             </div>
-            <h2 className="text-3xl font-display font-bold text-gray-900 mb-4">
-              You&apos;re in!
+            <h2 className="text-3xl font-display font-bold text-gray-900 dark:text-gray-100 mb-4">
+              You're in, {userName}!
             </h2>
-            <p className="text-xl font-sans text-gray-600 mb-4">
-              Waiting for host to start the session...
+            <p className="text-xl font-sans text-gray-600 dark:text-gray-300 mb-4">
+              Waiting for host to start the game...
             </p>
           </motion.div>
         </main>
       );
     }
 
-    const userAvatar = state.context.avatar || selectedAvatar;
-
+    // During game - waiting for group assignment
     return (
       <main className="h-screen flex flex-col bg-background overflow-hidden">
         <TitleBar />
 
-        {/* Incoming requests banner */}
-        {incomingRequests && incomingRequests.length > 0 && (
-          <RequestBanner
-            requests={incomingRequests}
-            onAccept={handleAcceptRequest}
-            onReject={handleRejectRequest}
-            intrusive={true}
-          />
-        )}
-
-        {/* Round progress bar */}
         {room && room.phase1Active && (
           <div className="px-4 pt-4">
             <RoundProgressBar
@@ -678,387 +586,320 @@ function UserPageContent() {
           </div>
         )}
 
-        {/* Content area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center p-8">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex-1 flex flex-col items-center"
+            className="text-center"
           >
-            {/* Fixed user avatar section */}
-            <div className="flex-shrink-0 px-8 pt-8 text-center">
-              <div className="mb-6">
-                <AvatarDisplay avatar={userAvatar} size="xl" />
-              </div>
+            <div className="mb-6">
+              <AvatarDisplay avatar={userAvatar} size="xl" />
             </div>
-
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto scrollbar-hide px-8 pb-8 w-full">
-              <div className="max-w-md mx-auto space-y-6">
-                {availableUsers && availableUsers.length > 0 ? (
-                  <>
-                    <h3 className="text-2xl font-semibold text-gray-700 text-center">
-                      Join up
-                    </h3>
-                    <div className="grid grid-cols-3 gap-4">
-                          {availableUsers.map((user) => {
-                            const hasIncomingRequests = incomingRequests && incomingRequests.length > 0;
-                            const isDisabled = hasIncomingRequests;
-
-                            return (
-                              <motion.button
-                                key={user.id}
-                                whileTap={isDisabled ? {} : { scale: 0.95 }}
-                                onClick={() => {
-                                  if (isDisabled) return;
-                                  setSelectedUser(user.id);
-                                  handleSendRequest(user.id);
-                                }}
-                                disabled={isDisabled}
-                                className={`aspect-square rounded-2xl flex flex-col items-center justify-center text-6xl transition-all relative ${
-                                  isDisabled
-                                    ? "bg-gray-100 dark:bg-gray-800 border-4 border-gray-200 dark:border-gray-700 opacity-40 cursor-not-allowed"
-                                    : selectedUser === user.id
-                                    ? "bg-primary text-primary-foreground shadow-xl ring-4 ring-primary-300"
-                                    : "bg-white dark:bg-gray-800 border-4 border-gray-200 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-lg"
-                                }`}
-                              >
-                                {selectedUser === user.id ? (
-                                  <LoadingSpinner size="md" color="border-purple-200 border-t-white" />
-                                ) : (
-                                  <>
-                                    <div>{user.avatar}</div>
-                                     {user.groupSize > 0 && (
-                                      <div className="text-xs mt-1 text-gray-600 dark:text-gray-400">
-                                        {user.groupSize}/{room?.maxGroupSize || 4}
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </motion.button>
-                            );
-                          })}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <p className="text-lg font-medium">
-                      Waiting for others to be available
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">
+              Forming groups...
+            </h2>
+            <LoadingSpinner size="md" />
           </motion.div>
         </div>
       </main>
     );
   }
 
-  // Waiting for acceptance state
-  if (state.matches("waiting_for_acceptance")) {
-    // Show incoming requests even while waiting
-    const inRequestsDisplay = incomingRequests && incomingRequests.length > 0;
+  // Name matching state
+  if (state.matches("name_matching")) {
+    const myUserId = state.context.userId;
+    const allMembers = (currentGroup?.members || []).filter((m: any): m is NonNullable<typeof m> => m !== null);
+    const otherMembers = allMembers.filter((m) => m.userId !== myUserId) as any[];
+    const nameChoices = currentGroup?.nameChoicesByPlayer?.[myUserId!] || {};
+    const submittedUsers = (currentGroup?.submittedNameMatching || []).map((id: any) => id.toString());
+    const myIncorrectAvatars = myUserId ? (currentGroup?.incorrectByPlayer?.[myUserId] || []) : [];
+    const hasSubmitted = myUserId ? (currentGroup?.submittedNameMatching?.includes(myUserId as any) || false) : false;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-background">
+      <main className="h-screen flex flex-col bg-background overflow-hidden">
         <TitleBar />
-        {inRequestsDisplay && (
-          <RequestBanner
-            requests={incomingRequests}
-            onAccept={handleAcceptRequest}
-            onReject={handleRejectRequest}
-            intrusive={false}
-          />
+
+        {room && room.phase1Active && (
+          <div className="px-4 pt-4">
+            <RoundProgressBar
+              currentRound={room.currentRound}
+              totalRounds={room.phase1Rounds}
+              roundStartedAt={room.roundStartedAt}
+            />
+          </div>
         )}
 
-        <WaitingScreen
-          title={outgoingRequest ? "Waiting for response from..." : "Waiting for response..."}
-        >
-          {outgoingRequest && (
-            <AvatarDisplay
-              avatar={outgoingRequest.target.avatar}
-              size="xl"
-              withHalo={true}
-            />
-          )}
-
-          <button
-            onClick={handleCancelRequest}
-            className="w-full max-w-xs px-6 py-4 text-base sm:text-lg font-semibold text-foreground border-2 border-border rounded-xl hover:bg-muted transition"
-          >
-            Cancel Request
-          </button>
-        </WaitingScreen>
+        <div className="flex-1 overflow-y-auto">
+          <NameMatchingUI
+            myAvatar={state.context.avatar}
+            myDisplayName={state.context.displayName}
+            myUserId={myUserId || ""}
+            groupMembers={otherMembers}
+            allMembers={allMembers}
+            nameChoices={nameChoices}
+            onSubmit={handleNameMatchingSubmit}
+            submittedUsers={submittedUsers}
+            serverIncorrectAvatars={myIncorrectAvatars}
+            hasSubmitted={hasSubmitted}
+          />
+        </div>
       </main>
     );
   }
 
   // Question active state
   if (state.matches("question_active")) {
-    const question = currentGroup?.question || state.context.question;
-    const members = currentGroup?.members || state.context.groupMembers;
-    const myAnswer = state.context.myAnswer;
-
-    const membersChosenA = members.filter((m: any) => m.answer === "A");
-    const membersChosenB = members.filter((m: any) => m.answer === "B");
+    const question = currentGroup?.question;
+    const myAnswer = currentGroup?.myAnswer;
+    const answers = currentGroup?.answers || {};
+    const members = currentGroup?.members || [];
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-3 sm:p-8 bg-gradient-to-b from-yellow-50 to-white dark:from-gray-900 dark:to-gray-800">
+      <main className="h-screen flex flex-col bg-background overflow-hidden">
         <TitleBar />
-        {/* Show subtle banner for incoming requests during active session */}
-        {incomingRequests && incomingRequests.length > 0 && (
-          <RequestBanner
-            requests={incomingRequests}
-            onAccept={handleAcceptRequest}
-            onReject={handleRejectRequest}
-            intrusive={false}
-          />
-        )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-2xl space-y-3 sm:space-y-8"
-        >
-          {/* Round progress bar */}
-          {room && room.phase1Active && (
+        {room && room.phase1Active && (
+          <div className="px-4 pt-4">
             <RoundProgressBar
               currentRound={room.currentRound}
               totalRounds={room.phase1Rounds}
               roundStartedAt={room.roundStartedAt}
             />
+          </div>
+        )}
+
+        <div className="flex-1 flex flex-col overflow-y-auto p-6">
+          {question && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex-1 flex flex-col max-w-lg mx-auto w-full"
+            >
+              {/* Question text */}
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 text-center mb-8">
+                {question.text}
+              </h2>
+
+              {/* Options */}
+              <div className="space-y-4 flex-1">
+                {/* Option A */}
+                <button
+                  onClick={() => handleSubmitAnswer("A")}
+                  disabled={!!myAnswer}
+                  className={`w-full p-6 rounded-2xl text-left transition-all ${
+                    myAnswer === "A"
+                      ? "bg-purple-600 text-white shadow-lg"
+                      : myAnswer
+                      ? "bg-gray-100 dark:bg-gray-700 text-gray-400"
+                      : "bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 hover:border-purple-400 hover:shadow-md"
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl font-bold">A</span>
+                    <span className="text-lg">{question.optionA}</span>
+                  </div>
+                  {/* Show who picked this */}
+                  <div className="flex gap-1 mt-2">
+                    {members
+                      .filter((m: any) => answers[m.userId] === "A")
+                      .map((m: any) => (
+                        <span key={m.userId} className="text-xl">
+                          {m.avatar}
+                        </span>
+                      ))}
+                  </div>
+                </button>
+
+                {/* Option B */}
+                <button
+                  onClick={() => handleSubmitAnswer("B")}
+                  disabled={!!myAnswer}
+                  className={`w-full p-6 rounded-2xl text-left transition-all ${
+                    myAnswer === "B"
+                      ? "bg-blue-600 text-white shadow-lg"
+                      : myAnswer
+                      ? "bg-gray-100 dark:bg-gray-700 text-gray-400"
+                      : "bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:shadow-md"
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl font-bold">B</span>
+                    <span className="text-lg">{question.optionB}</span>
+                  </div>
+                  {/* Show who picked this */}
+                  <div className="flex gap-1 mt-2">
+                    {members
+                      .filter((m: any) => answers[m.userId] === "B")
+                      .map((m: any) => (
+                        <span key={m.userId} className="text-xl">
+                          {m.avatar}
+                        </span>
+                      ))}
+                  </div>
+                </button>
+              </div>
+
+              {/* Follow up */}
+              {myAnswer && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mt-6 p-4 bg-gray-100 dark:bg-gray-700 rounded-xl"
+                >
+                  <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+                    Talk about it:
+                  </p>
+                  <p className="text-gray-800 dark:text-gray-100 mt-1">
+                    {question.followUp}
+                  </p>
+                </motion.div>
+              )}
+            </motion.div>
           )}
-          <div className="text-center">
-            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-8 leading-tight">
-              {question?.text}
-            </h2>
-          </div>
+        </div>
+      </main>
+    );
+  }
 
-          <div className="space-y-3 sm:space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleSubmitAnswer("A")}
-                className={`rounded-3xl flex flex-row items-center p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[200px] sm:min-h-0 sm:aspect-square ${
-                  myAnswer === "A" ? "ring-4 ring-primary-300" : ""
-                }`}
-              >
-                {/* Left column: Letter - narrow, center aligned */}
-                <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
-                  <div className="text-4xl sm:text-5xl font-bold">A</div>
-                </div>
-                
-                {/* Middle column: Question text - widest, center aligned */}
-                <div className="flex-1 flex items-center justify-center px-2 sm:px-4">
-                  <div className="text-center leading-tight text-xl sm:text-3xl font-semibold">
-                    {question?.optionA}
-                  </div>
-                </div>
-                
-                {/* Right column: Avatars - narrow, vertical list, center aligned */}
-                <div className="flex flex-col items-center justify-center gap-1 w-12 sm:w-16 shrink-0">
-                  {membersChosenA.length > 0 ? (
-                    membersChosenA.map((member: any) => (
-                      <div 
-                        key={member.id} 
-                        className="text-4xl sm:text-5xl"
-                      >
-                        {member.avatar}
-                      </div>
-                    ))
-                  ) : (
-                    // Invisible placeholder to maintain space
-                    <div className="h-[40px] sm:h-[48px]" aria-hidden="true"></div>
-                  )}
-                </div>
-              </motion.button>
-
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleSubmitAnswer("B")}
-                className={`rounded-3xl flex flex-row items-center p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[200px] sm:min-h-0 sm:aspect-square ${
-                  myAnswer === "B" ? "ring-4 ring-blue-300" : ""
-                }`}
-              >
-                {/* Left column: Letter - narrow, center aligned */}
-                <div className="flex items-center justify-center w-12 sm:w-16 shrink-0">
-                  <div className="text-4xl sm:text-5xl font-bold">B</div>
-                </div>
-                
-                {/* Middle column: Question text - widest, center aligned */}
-                <div className="flex-1 flex items-center justify-center px-2 sm:px-4">
-                  <div className="text-center leading-tight text-xl sm:text-3xl font-semibold">
-                    {question?.optionB}
-                  </div>
-                </div>
-                
-                {/* Right column: Avatars - narrow, vertical list, center aligned */}
-                <div className="flex flex-col items-center justify-center gap-1 w-12 sm:w-16 shrink-0">
-                  {membersChosenB.length > 0 ? (
-                    membersChosenB.map((member: any) => (
-                      <div 
-                        key={member.id} 
-                        className="text-4xl sm:text-5xl"
-                      >
-                        {member.avatar}
-                      </div>
-                    ))
-                  ) : (
-                    // Invisible placeholder to maintain space
-                    <div className="h-[40px] sm:h-[48px]" aria-hidden="true"></div>
-                  )}
-                </div>
-              </motion.button>
-            </div>
+  // Session locked - waiting for Phase 2
+  if (state.matches("session_locked")) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+        <TitleBar />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          <div className="mb-6">
+            <AvatarDisplay avatar={state.context.avatar} size="lg" />
           </div>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">
+            Game ended!
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300">
+            Waiting for slideshow to start...
+          </p>
+          <LoadingSpinner size="md" />
         </motion.div>
       </main>
     );
   }
 
-  // Wrap up state - DISABLED: "wrap_up" state doesn't exist in userStateMachine
-  // This code is unreachable and has been commented out
-  /*
-  if (state.matches("wrap_up")) {
+  // Phase 2 states
+  if (state.matches("phase2_voting") || state.matches("phase2_waiting")) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-b from-green-50 to-white">
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+        <TitleBar />
+        <div className="w-full max-w-md">
+          {currentRound && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <h2 className="text-2xl font-bold text-center text-gray-800 dark:text-gray-100">
+                {currentRound.round.questionText}
+              </h2>
+
+              {!hasVoted ? (
+                <div className="space-y-4">
+                  <button
+                    onClick={() => handleSubmitVote("A")}
+                    className="w-full p-4 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 transition-colors"
+                  >
+                    A
+                  </button>
+                  <button
+                    onClick={() => handleSubmitVote("B")}
+                    className="w-full p-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors"
+                  >
+                    B
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center text-gray-600 dark:text-gray-300 py-8">
+                  <p className="text-lg font-medium">Vote submitted!</p>
+                  <p className="text-sm mt-2">Waiting for reveal...</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+          {userScore !== null && userScore !== undefined && (
+            <div className="mt-4 text-center text-gray-600 dark:text-gray-300">
+              Your score: {typeof userScore === 'object' ? userScore.totalCorrect : userScore}
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  if (state.matches("phase2_complete")) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
         <TitleBar />
         <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="text-center space-y-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center w-full max-w-md"
         >
-          <div className="text-8xl">✨</div>
-          <h2 className="text-4xl font-bold text-gray-900">
-            Great conversation!
+          <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-8">
+            Game Complete!
           </h2>
+
+          {leaderboard && leaderboard.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold mb-4">Leaderboard</h3>
+              <div className="space-y-3">
+                {leaderboard.map((entry: any, index: number) => (
+                  <div
+                    key={entry.rank}
+                    className={`flex items-center justify-between p-3 rounded-lg ${
+                      entry.userId === state.context.userId
+                        ? "bg-purple-100 dark:bg-purple-900"
+                        : "bg-gray-50 dark:bg-gray-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-lg">#{entry.rank}</span>
+                      <span className="text-2xl">{entry.avatar}</span>
+                    </div>
+                    <span className="font-bold">{entry.totalCorrect}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button
-            onClick={() => {
-              setSelectedUser(null);
-              send({ type: "LEAVE_GROUP" });
-            }}
-            className="px-12 py-4 text-2xl font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-700 transition shadow-xl"
+            onClick={handleLeaveRoom}
+            className="mt-8 px-6 py-3 bg-gray-200 dark:bg-gray-700 rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
           >
-            Find Another Group
+            Leave Room
           </button>
         </motion.div>
       </main>
     );
   }
-  */
 
-  // Session locked state
-  if (state.matches("session_locked")) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-background">
-        <TitleBar />
-        <WaitingScreen title="Results Starting..." />
-      </main>
-    );
-  }
-
-  // Phase 2: Slideshow viewing (replaces voting, waiting, and reveal)
-  if (state.matches("phase2_voting") || state.matches("phase2_waiting") || state.matches("phase2_reveal")) {
-    const questionText = state.context.gameQuestion || currentRound?.questionData?.text || currentRound?.round.questionText || "";
-    const roundNumber = state.context.currentRoundNumber || currentRound?.round.roundNumber;
-    const totalRounds = gameState?.game?.totalRounds || 0;
-
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-6 pb-20 bg-background overflow-hidden">
-        <TitleBar />
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={roundNumber}
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            transition={{
-              duration: 0.5,
-              ease: [0.4, 0.0, 0.2, 1]
-            }}
-            className="w-full max-w-2xl space-y-6"
-          >
-            {currentRound?.questionData && (
-              <SlideshowQuestion
-                questionText={questionText}
-                optionA={currentRound.questionData.optionA}
-                optionB={currentRound.questionData.optionB}
-                percentA={currentRound.questionData.percentA}
-                percentB={currentRound.questionData.percentB}
-                totalResponses={currentRound.questionData.totalResponses}
-                isRevealed={!!currentRound?.round.revealedAt}
-                roundNumber={roundNumber || 1}
-                variant="user"
-              />
-            )}
-
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Leave button - fixed at bottom */}
-        <div className="fixed bottom-6 left-0 right-0 flex justify-center pointer-events-none">
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            onClick={handleLeaveRoom}
-            className="px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg pointer-events-auto"
-            aria-label="Leave room"
-          >
-            Leave
-          </motion.button>
-        </div>
-      </main>
-    );
-  }
-
-  // Phase 2: Complete state - just show session ended
-  if (state.matches("phase2_complete")) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 pb-20 bg-gradient-to-b from-gray-50 to-white">
-        <TitleBar />
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center space-y-6"
-        >
-          <div className="text-8xl">🔒</div>
-          <h2 className="text-4xl font-bold text-gray-900">
-            Session Ended
-          </h2>
-          <p className="text-xl text-gray-600">
-            Thanks for participating!
-          </p>
-        </motion.div>
-
-        {/* Leave button - fixed at bottom */}
-        <div className="fixed bottom-6 left-0 right-0 flex justify-center pointer-events-none">
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            onClick={handleLeaveRoom}
-            className="px-8 py-3 text-lg font-semibold text-foreground bg-background border-2 border-border rounded-xl hover:bg-muted transition-colors shadow-lg pointer-events-auto"
-            aria-label="Leave room"
-          >
-            Leave
-          </motion.button>
-        </div>
-      </main>
-    );
-  }
-
-  return null;
+  // Fallback
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+      <LoadingSpinner size="lg" />
+    </main>
+  );
 }
 
 export default function UserPage() {
   return (
-    <Suspense fallback={
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
-        <LoadingSpinner size="lg" />
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-background">
+          <LoadingSpinner size="lg" />
+        </main>
+      }
+    >
       <UserPageContent />
     </Suspense>
   );

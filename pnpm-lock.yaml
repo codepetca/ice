@@ -15,8 +15,8 @@ importers:
         specifier: ^1.9.0
         version: 1.9.4
       convex:
-        specifier: ^1.28.2
-        version: 1.28.2(react@18.3.1)
+        specifier: ^1.29.3
+        version: 1.29.3(react@18.3.1)
       framer-motion:
         specifier: ^11.5.0
         version: 11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -752,8 +752,8 @@ packages:
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
 
-  convex@1.28.2:
-    resolution: {integrity: sha512-KzNsLbcVXb1OhpVQ+vHMgu+hjrsQ1ks5BZwJ2lR8O+nfbeJXE6tHbvsg1H17+ooUDvIDBSMT3vXS+AlodDhTnQ==}
+  convex@1.29.3:
+    resolution: {integrity: sha512-tg5TXzMjpNk9m50YRtdp6US+t7ckxE4E+7DNKUCjJ2MupQs2RBSPF/z5SNN4GUmQLSfg0eMILDySzdAvjTrhnw==}
     engines: {node: '>=18.0.0', npm: '>=7.0.0'}
     hasBin: true
     peerDependencies:
@@ -2638,7 +2638,7 @@ snapshots:
 
   concat-map@0.0.1: {}
 
-  convex@1.28.2(react@18.3.1):
+  convex@1.29.3(react@18.3.1):
     dependencies:
       esbuild: 0.25.4
       prettier: 3.6.2

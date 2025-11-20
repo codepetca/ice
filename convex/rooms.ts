@@ -43,15 +43,6 @@ export const cleanupExpiredRooms = internalMutation({
         await ctx.db.delete(answer._id);
       }
 
-      // Delete all group requests in this room
-      const requests = await ctx.db
-        .query("groupRequests")
-        .withIndex("by_room_and_requester", (q) => q.eq("roomId", room._id))
-        .collect();
-      for (const request of requests) {
-        await ctx.db.delete(request._id);
-      }
-
       // Delete Phase 2 data (games, rounds, votes, scores) tied to this room
       const games = await ctx.db
         .query("games")
@@ -151,6 +142,7 @@ export const createRoom = mutation({
       currentRound: 0, // 0 = not started
       maxGroupSize: args.maxGroupSize || 4,
       nextQuestionIndex: 0,
+      pairHistory: {}, // Track player pairings to minimize repeats
       createdAt: now,
       expiresAt: now + fortyEightHours,
     });
@@ -202,6 +194,11 @@ export const startPhase1 = mutation({
       phase1StartedAt: now,
       currentRound: 1, // Start at round 1
       roundStartedAt: now,
+    });
+
+    // Automatically assign groups for round 1
+    await ctx.scheduler.runAfter(0, internal.groups.assignGroupsForRound, {
+      roomId: args.roomId,
     });
   },
 });
@@ -290,37 +287,21 @@ export const advanceRound = internalMutation({
       await ctx.db.delete(group._id);
     }
 
-    // Cancel all pending requests
-    const requests = await ctx.db
-      .query("groupRequests")
-      .withIndex("by_room_and_requester", (q) => q.eq("roomId", args.roomId))
-      .filter((q) => q.eq(q.field("status"), "pending"))
-      .collect();
-
-    for (const request of requests) {
-      await ctx.db.patch(request._id, { status: "expired" });
-
-      // Reset requester and target statuses
-      const requester = await ctx.db.get(request.requesterId);
-      const target = await ctx.db.get(request.targetId);
-
-      if (requester && requester.status === "pending_sent") {
-        await ctx.db.patch(request.requesterId, { status: "available" });
-      }
-      if (target && target.status === "pending_received") {
-        await ctx.db.patch(request.targetId, { status: "available" });
-      }
-    }
-
     // Advance to next round
     await ctx.db.patch(args.roomId, {
       currentRound: nextRound,
       roundStartedAt: Date.now(),
     });
+
+    // Automatically assign new groups for this round
+    await ctx.scheduler.runAfter(0, internal.groups.assignGroupsForRound, {
+      roomId: args.roomId,
+    });
   },
 });
 
 // Adjust Phase 1 rounds (add or subtract rounds)
+// Can only adjust BEFORE game starts
 export const adjustPhase1Rounds = mutation({
   args: {
     roomId: v.id("rooms"),
@@ -331,6 +312,11 @@ export const adjustPhase1Rounds = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
     if (room.pin !== args.pin) throw new Error("Invalid PIN");
+
+    // Cannot adjust rounds after game has started
+    if (room.phase1Active) {
+      throw new Error("Cannot adjust rounds after game has started");
+    }
 
     // Calculate new round count
     let newRounds = room.phase1Rounds + args.adjustment;
@@ -359,11 +345,12 @@ export const resetRoom = mutation({
 
     // Reset room state for new session
     await ctx.db.patch(args.roomId, {
-      phase1Rounds: 10, // Reset to 10 rounds (5 minutes)
+      phase1Rounds: 5, // Reset to 5 rounds (2.5 minutes)
       currentRound: 0,
       roundStartedAt: undefined,
       phase1StartedAt: undefined,
       phase1Active: false,
+      pairHistory: {}, // Reset pair history
     });
   },
 });
@@ -420,13 +407,15 @@ export const getRoomStats = query({
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
       .collect();
 
-    const activeGroups = groups.filter((g) => g.status !== "completed");
-    const completedGroups = groups.filter((g) => g.status === "completed");
+    // Count groups by phase
+    const nameMatchingGroups = groups.filter((g) => g.phase === "name_matching");
+    const wyrGroups = groups.filter((g) => g.phase === "wyr");
 
     return {
       totalUsers: users.length,
-      activeGroups: activeGroups.length,
-      completedGroups: completedGroups.length,
+      totalGroups: groups.length,
+      nameMatchingGroups: nameMatchingGroups.length,
+      wyrGroups: wyrGroups.length,
     };
   },
 });
@@ -436,7 +425,7 @@ export const enforceRoundTimers = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
-    const ROUND_DURATION = 30000; // 30 seconds in milliseconds
+    const ROUND_DURATION = 60000; // 60 seconds (1 minute) in milliseconds
 
     // Find all rooms with active Phase 1
     const activeRooms = await ctx.db

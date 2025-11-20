@@ -13,12 +13,12 @@ export default function RoundProgressBar({
   totalRounds,
   roundStartedAt,
 }: RoundProgressBarProps) {
-  const [timeRemaining, setTimeRemaining] = useState(30);
+  const [timeRemaining, setTimeRemaining] = useState(60);
   const [progress, setProgress] = useState(100);
 
   useEffect(() => {
     if (!roundStartedAt) {
-      setTimeRemaining(30);
+      setTimeRemaining(60);
       setProgress(100);
       return;
     }
@@ -26,8 +26,8 @@ export default function RoundProgressBar({
     const updateTimer = () => {
       const now = Date.now();
       const elapsed = now - roundStartedAt;
-      const remaining = Math.max(0, 30 - Math.floor(elapsed / 1000));
-      const progressPercent = Math.max(0, ((30000 - elapsed) / 30000) * 100);
+      const remaining = Math.max(0, 60 - Math.floor(elapsed / 1000));
+      const progressPercent = Math.max(0, ((60000 - elapsed) / 60000) * 100);
 
       setTimeRemaining(remaining);
       setProgress(progressPercent);

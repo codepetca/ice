@@ -46,7 +46,7 @@ export default function HostPage() {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const [view, setView] = useState<"create" | "manage">("create");
-  const [rounds, setRounds] = useState(10); // number of 30-second rounds (default 10 = 5 minutes)
+  const [rounds, setRounds] = useState(5); // number of 60-second rounds (default 5 = 5 minutes)
   const [maxGroupSize, setMaxGroupSize] = useState(4);
   const [showOptions, setShowOptions] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -624,7 +624,7 @@ export default function HostPage() {
     const roundElapsed = room.roundStartedAt && room.phase1Active
       ? Math.max(0, Math.floor((currentTime - room.roundStartedAt) / 1000))
       : 0;
-    const roundTimeRemaining = Math.max(0, 30 - roundElapsed);
+    const roundTimeRemaining = Math.max(0, 60 - roundElapsed);
     const minutes = Math.floor(roundTimeRemaining / 60);
     const seconds = roundTimeRemaining % 60;
 
@@ -656,7 +656,7 @@ export default function HostPage() {
                 {/* Decrease rounds button - left side */}
                 <button
                   onClick={() => handleAdjustRounds(-1)}
-                  disabled={room.phase1Rounds <= 1}
+                  disabled={room.phase1Rounds <= 1 || room.phase1Active}
                   className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
                   aria-label="Decrease rounds by 1"
                 >
@@ -668,14 +668,14 @@ export default function HostPage() {
                     {room.phase1Rounds}
                   </div>
                   <div className="text-lg sm:text-xl text-foreground/60 mt-2">
-                    {room.phase1Rounds === 1 ? 'round' : 'rounds'} ({Math.floor(room.phase1Rounds * 30 / 60)} min)
+                    {room.phase1Rounds === 1 ? 'round' : 'rounds'} ({room.phase1Rounds} min)
                   </div>
                 </div>
 
                 {/* Increase rounds button - right side */}
                 <button
                   onClick={() => handleAdjustRounds(1)}
-                  disabled={room.phase1Rounds >= 40}
+                  disabled={room.phase1Rounds >= 40 || room.phase1Active}
                   className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
                   aria-label="Increase rounds by 1"
                 >
@@ -761,29 +761,9 @@ export default function HostPage() {
                 </div>
 
                 <div className="flex items-center justify-center gap-6 sm:gap-8 md:gap-12 lg:gap-16">
-                  {/* Decrease rounds button - left side */}
-                  <button
-                    onClick={() => handleAdjustRounds(-1)}
-                    disabled={room.phase1Rounds <= 1}
-                    className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    aria-label="Decrease total rounds by 1"
-                  >
-                    <Minus className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" />
-                  </button>
-
                   <div className="text-7xl sm:text-8xl md:text-9xl lg:text-9xl xl:text-9xl font-bold tabular-nums text-foreground">
                     {minutes.toString().padStart(2, "0")}:{seconds.toString().padStart(2, "0")}
                   </div>
-
-                  {/* Increase rounds button - right side */}
-                  <button
-                    onClick={() => handleAdjustRounds(1)}
-                    disabled={room.phase1Rounds >= 40}
-                    className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 flex items-center justify-center text-foreground/20 hover:text-foreground/30 bg-foreground/5 hover:bg-foreground/10 rounded-full transition-all hover:scale-105 active:scale-95 active:ring-2 active:ring-foreground/20 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    aria-label="Increase total rounds by 1"
-                  >
-                    <Plus className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" />
-                  </button>
                 </div>
               </div>
 

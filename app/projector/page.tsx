@@ -248,19 +248,19 @@ export default function ProjectorPage() {
 
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 text-center space-y-4">
             <div className="text-8xl font-bold text-secondary-300">
-              {stats?.activeGroups || 0}
+              {stats?.totalGroups || 0}
             </div>
             <div className="text-3xl text-accent-200 uppercase tracking-wider">
-              Active Groups
+              Groups
             </div>
           </div>
 
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 text-center space-y-4">
             <div className="text-8xl font-bold text-green-300">
-              {stats?.completedGroups || 0}
+              {stats?.wyrGroups || 0}
             </div>
             <div className="text-3xl text-accent-200 uppercase tracking-wider">
-              Completed
+              In WYR Phase
             </div>
           </div>
         </motion.div>
