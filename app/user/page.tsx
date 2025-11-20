@@ -599,13 +599,14 @@ function UserPageContent() {
             <p className="text-xl font-sans text-gray-600">Choose your avatar</p>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4" data-testid="avatar-selection">
             {avatarOptions.map((avatar) => (
               <motion.button
                 key={avatar}
                 whileTap={{ scale: 0.95 }}
                 whileHover={{ scale: 1.05 }}
                 onClick={() => setSelectedAvatar(avatar)}
+                data-testid={`avatar-option-${avatar}`}
                 className={`aspect-square rounded-3xl flex items-center justify-center text-7xl transition-all ${
                   selectedAvatar === avatar
                     ? "bg-primary text-primary-foreground shadow-glow ring-4 ring-primary-300"
@@ -711,7 +712,7 @@ function UserPageContent() {
                     </h3>
                     {!room?.windingDownStartedAt && (
                       <>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-3 gap-4" data-testid="available-users-list">
                           {availableUsers.map((user) => {
                             const hasIncomingRequests = incomingRequests && incomingRequests.length > 0;
                             const isDisabled = hasIncomingRequests;
@@ -726,6 +727,7 @@ function UserPageContent() {
                                   handleSendRequest(user.id);
                                 }}
                                 disabled={isDisabled}
+                                data-testid={`user-avatar-${user.code}`}
                                 className={`aspect-square rounded-2xl flex flex-col items-center justify-center text-6xl transition-all relative ${
                                   isDisabled
                                     ? "bg-gray-100 dark:bg-gray-800 border-4 border-gray-200 dark:border-gray-700 opacity-40 cursor-not-allowed"
@@ -850,16 +852,17 @@ function UserPageContent() {
           className="w-full max-w-2xl space-y-3 sm:space-y-8"
         >
           <div className="text-center">
-            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-8 leading-tight">
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-8 leading-tight" data-testid="question-text">
               {question?.text}
             </h2>
           </div>
 
           <div className="space-y-3 sm:space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6" data-testid="question-options">
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("A")}
+                data-testid="question-option-a"
                 className={`rounded-3xl flex flex-row items-center p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-xl transition min-h-[200px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "A" ? "ring-4 ring-primary-300" : ""
                 }`}
@@ -897,6 +900,7 @@ function UserPageContent() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSubmitAnswer("B")}
+                data-testid="question-option-b"
                 className={`rounded-3xl flex flex-row items-center p-4 sm:p-6 text-2xl font-bold text-white bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-xl transition min-h-[200px] sm:min-h-0 sm:aspect-square ${
                   myAnswer === "B" ? "ring-4 ring-blue-300" : ""
                 }`}

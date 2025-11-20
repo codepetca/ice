@@ -20,6 +20,16 @@ export const joinRoom = mutation({
 
     if (!room) throw new Error("Room not found");
 
+    // Check room capacity (max 35 players)
+    const existingUsers = await ctx.db
+      .query("users")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .collect();
+
+    if (existingUsers.length >= 35) {
+      throw new Error("Room is full (max 35 players)");
+    }
+
     // Generate a unique code for this user
     let code = generateUserCode();
     let existingUser = await ctx.db
