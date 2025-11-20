@@ -583,6 +583,7 @@ export default function HostPage() {
               <div className="flex flex-col gap-4">
                 <button
                   onClick={handleCreateRoom}
+                  data-testid="create-room-button"
                   className="w-full rounded-3xl bg-gradient-to-r from-success to-success/80 px-6 py-4 text-lg font-semibold text-white shadow-[0_25px_45px_rgba(34,197,94,0.25)] transition hover:translate-y-0.5 hover:opacity-95 sm:text-xl"
                 >
                   Create a New Room
@@ -710,6 +711,7 @@ export default function HostPage() {
           <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
             <button
               onClick={handleStartPhase1}
+              data-testid="start-game-button"
               className="w-20 h-20 flex items-center justify-center bg-gradient-to-br from-primary-600 to-accent-600 dark:from-primary-500 dark:to-accent-500 text-white rounded-full hover:from-primary-700 hover:to-accent-700 dark:hover:from-primary-600 dark:hover:to-accent-600 transition-all shadow-2xl hover:shadow-3xl hover:scale-110 active:scale-95"
               aria-label="Start game"
             >
