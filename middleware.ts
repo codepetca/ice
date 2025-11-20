@@ -12,7 +12,9 @@ export function middleware(req: NextRequest) {
     url.pathname.startsWith('/favicon') ||
     url.pathname.startsWith('/closed') ||
     url.pathname.startsWith('/bypass') ||
-    url.pathname === '/api/health'
+    url.pathname === '/api/health' ||
+    // Allow public assets (images, fonts, etc.)
+    /\.(png|jpg|jpeg|gif|svg|ico|webp|woff|woff2|ttf|eot)$/i.test(url.pathname)
   ) {
     return NextResponse.next();
   }
