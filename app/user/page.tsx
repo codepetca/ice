@@ -503,13 +503,14 @@ function UserPageContent() {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4" data-testid="avatar-selection">
             {avatarOptions.map((avatar) => (
               <motion.button
                 key={avatar}
                 whileTap={{ scale: 0.95 }}
                 whileHover={{ scale: 1.05 }}
                 onClick={() => setSelectedAvatar(avatar)}
+                data-testid={`avatar-option-${avatar}`}
                 className={`aspect-square rounded-3xl flex items-center justify-center text-7xl transition-all ${
                   selectedAvatar === avatar
                     ? "bg-primary text-primary-foreground shadow-glow ring-4 ring-primary-300"

@@ -140,7 +140,7 @@ export default function Home() {
             <p className="text-center text-xs sm:text-sm font-sans text-muted-foreground uppercase tracking-[0.3em]">
               Enter room code
             </p>
-            <div className="flex justify-center gap-2 sm:gap-4">
+            <div className="flex justify-center gap-2 sm:gap-4" data-testid="room-code-input-container">
               {[0, 1, 2, 3].map((index) => (
                 <input
                   key={index}
@@ -158,6 +158,7 @@ export default function Home() {
                   disabled={
                     validating || (fullCode.length === 4 && room === undefined)
                   }
+                  data-testid={`room-code-input-${index}`}
                   className="w-16 h-20 sm:w-20 sm:h-24 text-center text-4xl sm:text-5xl font-display font-bold border-2 border-border rounded-2xl bg-primary text-primary-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/30 transition-all uppercase disabled:opacity-50"
                 />
               ))}

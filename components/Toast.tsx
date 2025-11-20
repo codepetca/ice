@@ -100,13 +100,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              data-testid={`toast-${toast.type}`}
               className={`${getToastStyles(
                 toast.type
               )} px-6 py-4 rounded-lg flex items-center gap-4 min-w-[320px] max-w-md pointer-events-auto`}
               onClick={removeToast}
             >
               <span className="text-3xl">{getToastIcon(toast.type)}</span>
-              <p className="flex-1 text-base font-sans font-semibold">{toast.message}</p>
+              <p className="flex-1 text-base font-sans font-semibold" data-testid="toast-message">{toast.message}</p>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

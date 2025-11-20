@@ -192,7 +192,57 @@ npm run lint         # Run ESLint
 
 npx convex dev       # Start Convex dev server
 npx convex dashboard # Open Convex dashboard
+
+# E2E Testing
+npm run test:e2e          # Run E2E tests (headless)
+npm run test:e2e:ui       # Run E2E tests with Playwright UI
+npm run test:e2e:headed   # Run E2E tests in headed mode (see browser)
+npm run test:e2e:debug    # Run E2E tests with step-by-step debugging
 ```
+
+## E2E Testing
+
+The project includes comprehensive end-to-end tests using Playwright that simulate real multiplayer scenarios.
+
+### Running E2E Tests
+
+**Prerequisites:**
+1. Start the Convex dev server: `npx convex dev`
+2. Start the Next.js dev server: `npm run dev`
+3. In a separate terminal, run tests: `npm run test:e2e`
+
+**Test Coverage:**
+- ✅ Happy path: Host creates room + 4 players join and browse
+- ✅ Room capacity: Enforces 35 player limit
+- ✅ Late joiners: Players can join after game starts
+- ✅ Avatar uniqueness: System provides unique avatar options
+- ✅ Session lock: Phase transitions work correctly
+
+**Test Helpers:**
+The `tests/e2e/helpers.ts` module provides high-level functions for common actions:
+- `createHostRoom(page)` - Create room and get room code
+- `createPlayers(browser, configs)` - Spawn multiple isolated player sessions
+- `startGame(hostPage)` - Start Phase 1 from host view
+- `waitForPhase(page, phase)` - Wait for specific game state
+- `waitForToast(page, type, message)` - Assert on toast notifications
+
+**Data Test IDs:**
+All interactive elements have `data-testid` attributes for stable selection:
+- Landing page: `room-code-input-{0-3}`
+- Host view: `create-room-button`, `room-code`, `start-game-button`
+- User view: `avatar-selection`, `avatar-option-{emoji}`, `available-users-list`
+- Questions: `question-text`, `question-option-a`, `question-option-b`
+- Toasts: `toast-{type}`, `toast-message`
+
+**Writing New Tests:**
+See `tests/e2e/multiplayer.spec.ts` for examples. Each test should:
+1. Create isolated browser contexts for each player
+2. Use helper functions for common actions
+3. Assert on visible UI elements (not internal state)
+4. Clean up contexts in `finally` blocks
+
+**Note on Room Capacity:**
+The backend enforces a maximum of 35 players per room to match typical classroom sizes. This is checked in the `joinRoom` mutation and displays a user-friendly error toast when exceeded.
 
 ## Deployment to Production
 
