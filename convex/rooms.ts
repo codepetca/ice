@@ -43,15 +43,6 @@ export const cleanupExpiredRooms = internalMutation({
         await ctx.db.delete(answer._id);
       }
 
-      // Delete all group requests in this room
-      const requests = await ctx.db
-        .query("groupRequests")
-        .withIndex("by_room_and_requester", (q) => q.eq("roomId", room._id))
-        .collect();
-      for (const request of requests) {
-        await ctx.db.delete(request._id);
-      }
-
       // Delete Phase 2 data (games, rounds, votes, scores) tied to this room
       const games = await ctx.db
         .query("games")
@@ -133,7 +124,7 @@ async function generateUniquePIN(ctx: any): Promise<string> {
 export const createRoom = mutation({
   args: {
     name: v.string(),
-    phase1Duration: v.number(), // in seconds
+    phase1Rounds: v.number(), // number of 30-second rounds
     maxGroupSize: v.optional(v.number()), // optional, defaults to 4
   },
   handler: async (ctx, args) => {
@@ -147,9 +138,11 @@ export const createRoom = mutation({
       pin,
       name: args.name,
       phase1Active: false,
-      phase1Duration: args.phase1Duration,
+      phase1Rounds: args.phase1Rounds,
+      currentRound: 0, // 0 = not started
       maxGroupSize: args.maxGroupSize || 4,
       nextQuestionIndex: 0,
+      pairHistory: {}, // Track player pairings to minimize repeats
       createdAt: now,
       expiresAt: now + fortyEightHours,
     });
@@ -195,9 +188,17 @@ export const startPhase1 = mutation({
     if (!room) throw new Error("Room not found");
     if (room.pin !== args.pin) throw new Error("Invalid PIN");
 
+    const now = Date.now();
     await ctx.db.patch(args.roomId, {
       phase1Active: true,
-      phase1StartedAt: Date.now(),
+      phase1StartedAt: now,
+      currentRound: 1, // Start at round 1
+      roundStartedAt: now,
+    });
+
+    // Automatically assign groups for round 1
+    await ctx.scheduler.runAfter(0, internal.groups.assignGroupsForRound, {
+      roomId: args.roomId,
     });
   },
 });
@@ -212,50 +213,11 @@ export const stopPhase1 = mutation({
     if (!room) throw new Error("Room not found");
     if (room.pin !== args.pin) throw new Error("Invalid PIN");
 
-    // Start winding down period (15 seconds to finish)
-    const now = Date.now();
-    await ctx.db.patch(args.roomId, {
-      windingDownStartedAt: now,
-    });
-
-    // Schedule full stop after 15 seconds
-    await ctx.scheduler.runAfter(15000, internal.rooms.finalizeStop, {
-      roomId: args.roomId,
-    });
-  },
-});
-
-// Adjust Phase 1 duration (add or subtract time)
-export const adjustPhase1Duration = mutation({
-  args: {
-    roomId: v.id("rooms"),
-    pin: v.string(),
-    adjustmentSeconds: v.number(), // positive to add, negative to subtract
-  },
-  handler: async (ctx, args) => {
-    const room = await ctx.db.get(args.roomId);
-    if (!room) throw new Error("Room not found");
-    if (room.pin !== args.pin) throw new Error("Invalid PIN");
-
-    // Calculate new duration
-    let newDuration = room.phase1Duration + args.adjustmentSeconds;
-
-    // Enforce constraints: min 60s (1 min), max 1200s (20 min)
-    newDuration = Math.max(60, Math.min(1200, newDuration));
-
-    await ctx.db.patch(args.roomId, {
-      phase1Duration: newDuration,
-    });
-  },
-});
-
-// Internal mutation to fully stop Phase 1 after winding down
-export const finalizeStop = internalMutation({
-  args: { roomId: v.id("rooms") },
-  handler: async (ctx, args) => {
+    // Immediately stop Phase 1 (no winding down period)
     await ctx.db.patch(args.roomId, {
       phase1Active: false,
-      windingDownStartedAt: undefined,
+      currentRound: 0,
+      roundStartedAt: undefined,
     });
 
     // Auto-generate game after Phase 1 ends
@@ -268,6 +230,107 @@ export const finalizeStop = internalMutation({
     }
   },
 });
+
+// Advance to next round (called by cron timer every 30 seconds)
+export const advanceRound = internalMutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) return; // Room deleted
+    if (!room.phase1Active) return; // Phase 1 not active
+
+    const nextRound = room.currentRound + 1;
+
+    // Check if we've exceeded the total rounds
+    if (nextRound > room.phase1Rounds) {
+      // End Phase 1
+      await ctx.db.patch(args.roomId, {
+        phase1Active: false,
+        currentRound: 0,
+        roundStartedAt: undefined,
+      });
+
+      // Auto-generate game after Phase 1 ends
+      try {
+        await ctx.scheduler.runAfter(0, internal.games.generateGameInternal, {
+          roomId: args.roomId,
+        });
+      } catch (error) {
+        console.error("Failed to auto-generate game:", error);
+      }
+      return;
+    }
+
+    // Dissolve all groups in this room
+    const groups = await ctx.db
+      .query("groups")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+
+    for (const group of groups) {
+      // Reset all members to available status
+      const memberIds = [
+        group.user1Id,
+        group.user2Id,
+        group.user3Id,
+        group.user4Id,
+      ].filter(Boolean);
+
+      for (const memberId of memberIds) {
+        await ctx.db.patch(memberId as any, {
+          status: "available",
+          currentGroupId: undefined,
+        });
+      }
+
+      // Delete the group
+      await ctx.db.delete(group._id);
+    }
+
+    // Advance to next round
+    await ctx.db.patch(args.roomId, {
+      currentRound: nextRound,
+      roundStartedAt: Date.now(),
+    });
+
+    // Automatically assign new groups for this round
+    await ctx.scheduler.runAfter(0, internal.groups.assignGroupsForRound, {
+      roomId: args.roomId,
+    });
+  },
+});
+
+// Adjust Phase 1 rounds (add or subtract rounds)
+// Can only adjust BEFORE game starts
+export const adjustPhase1Rounds = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    pin: v.string(),
+    adjustment: v.number(), // positive to add, negative to subtract
+  },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.pin !== args.pin) throw new Error("Invalid PIN");
+
+    // Cannot adjust rounds after game has started
+    if (room.phase1Active) {
+      throw new Error("Cannot adjust rounds after game has started");
+    }
+
+    // Calculate new round count
+    let newRounds = room.phase1Rounds + args.adjustment;
+
+    // Enforce constraints: min 1 round (30s), max 40 rounds (20 min)
+    newRounds = Math.max(1, Math.min(40, newRounds));
+
+    await ctx.db.patch(args.roomId, {
+      phase1Rounds: newRounds,
+    });
+  },
+});
+
+// No longer needed - stopPhase1 now handles everything directly
 
 // Reset room to ready state (before Phase 1 was started)
 export const resetRoom = mutation({
@@ -282,10 +345,12 @@ export const resetRoom = mutation({
 
     // Reset room state for new session
     await ctx.db.patch(args.roomId, {
-      phase1Duration: 600, // Reset to 10 minutes
+      phase1Rounds: 5, // Reset to 5 rounds (2.5 minutes)
+      currentRound: 0,
+      roundStartedAt: undefined,
       phase1StartedAt: undefined,
       phase1Active: false,
-      windingDownStartedAt: undefined,
+      pairHistory: {}, // Reset pair history
     });
   },
 });
@@ -342,13 +407,40 @@ export const getRoomStats = query({
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
       .collect();
 
-    const activeGroups = groups.filter((g) => g.status !== "completed");
-    const completedGroups = groups.filter((g) => g.status === "completed");
+    // Count groups by phase
+    const nameMatchingGroups = groups.filter((g) => g.phase === "name_matching");
+    const wyrGroups = groups.filter((g) => g.phase === "wyr");
 
     return {
       totalUsers: users.length,
-      activeGroups: activeGroups.length,
-      completedGroups: completedGroups.length,
+      totalGroups: groups.length,
+      nameMatchingGroups: nameMatchingGroups.length,
+      wyrGroups: wyrGroups.length,
     };
+  },
+});
+
+// Enforce round timers - check all active rooms and advance rounds as needed
+export const enforceRoundTimers = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const ROUND_DURATION = 60000; // 60 seconds (1 minute) in milliseconds
+
+    // Find all rooms with active Phase 1
+    const activeRooms = await ctx.db
+      .query("rooms")
+      .filter((q) => q.eq(q.field("phase1Active"), true))
+      .collect();
+
+    for (const room of activeRooms) {
+      // Check if round timer has expired
+      if (room.roundStartedAt && now >= room.roundStartedAt + ROUND_DURATION) {
+        // Advance to next round
+        await ctx.scheduler.runAfter(0, internal.rooms.advanceRound, {
+          roomId: room._id,
+        });
+      }
+    }
   },
 });

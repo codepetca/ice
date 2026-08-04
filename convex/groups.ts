@@ -1,6 +1,11 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
 // Get the number of users currently in a group
 function getGroupSize(group: any): number {
@@ -24,12 +29,6 @@ function getUserSlot(group: any, userId: string): number | null {
 // Check if a user is part of a group
 function isUserInGroup(group: any, userId: string): boolean {
   return getUserSlot(group, userId) !== null;
-}
-
-// Calculate backoff time in milliseconds based on level
-function getBackoffTime(level: number): number {
-  // Exponential backoff: 1s, 2s, 4s, 8s, 16s (max)
-  return Math.min(Math.pow(2, level) * 1000, 16000);
 }
 
 // Deterministic shuffle based on a seed (date)
@@ -179,661 +178,405 @@ async function selectQuestion(ctx: any, roomId: string, memberIds: string[]): Pr
   return selectedQuestion;
 }
 
-// Cleanup expired group requests and reset user statuses
-export const cleanupExpiredRequests = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const now = Date.now();
+// Create a pair key for tracking pair history (always in sorted order)
+function getPairKey(userId1: string, userId2: string): string {
+  return userId1 < userId2 ? `${userId1}:${userId2}` : `${userId2}:${userId1}`;
+}
 
-    // Find all expired pending requests
-    const expiredRequests = await ctx.db
-      .query("groupRequests")
-      .withIndex("by_expires_at")
-      .filter((q) => q.lte(q.field("expiresAt"), now))
+// ============================================================================
+// AUTOMATIC GROUP ASSIGNMENT
+// ============================================================================
+
+/**
+ * Automatically assign groups for a round using pair history to minimize repeats
+ *
+ * Algorithm:
+ * 1. Gather all available players (status = "available")
+ * 2. Shuffle players randomly
+ * 3. Form groups of 3-4 players, preferring groups with fewest previous pairings
+ * 4. Update pairHistory in room
+ * 5. Create group records with phase = "name_matching"
+ * 6. Update player status to "in_group"
+ * 7. Generate name choices for each group
+ */
+export const assignGroupsForRound = internalMutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) return;
+
+    const currentRound = room.currentRound;
+    if (currentRound === 0) return; // Not in active round
+
+    // Get all available players
+    const availablePlayers = await ctx.db
+      .query("users")
+      .withIndex("by_room_and_status", (q) =>
+        q.eq("roomId", args.roomId).eq("status", "available")
+      )
       .collect();
 
-    // Filter to only pending requests
-    const pendingExpired = expiredRequests.filter(
-      (r) => r.status === "pending"
-    );
+    if (availablePlayers.length === 0) return;
 
-    // Mark as expired and reset user statuses
-    for (const request of pendingExpired) {
-      // Mark request as expired
-      await ctx.db.patch(request._id, { status: "expired" });
+    // Shuffle players for randomness
+    const shuffled = [...availablePlayers].sort(() => Math.random() - 0.5);
 
-      // Reset requester status if still pending_sent
-      const requester = await ctx.db.get(request.requesterId);
-      if (requester && requester.status === "pending_sent") {
-        await ctx.db.patch(request.requesterId, { status: "available" });
+    const pairHistory = room.pairHistory || {};
+    const groups: any[] = [];
+    let i = 0;
+
+    // Form groups of 3-4 players
+    while (i < shuffled.length) {
+      const remaining = shuffled.length - i;
+
+      // Determine group size
+      let groupSize: number;
+      if (remaining === 2) {
+        // Special case: only 2 players left, make a 2-person group
+        groupSize = 2;
+      } else if (remaining === 5) {
+        // Special case: 5 players left, make a 2-person group now (leaves 3 for next)
+        groupSize = 2;
+      } else if (remaining >= 4) {
+        // Default: try to make groups of 4
+        groupSize = 4;
+      } else {
+        // 3 players left, make a 3-person group
+        groupSize = 3;
       }
 
-      // Reset target status if still pending_received
-      const target = await ctx.db.get(request.targetId);
-      if (target && target.status === "pending_received") {
-        await ctx.db.patch(request.targetId, { status: "available" });
+      const groupPlayers = shuffled.slice(i, i + groupSize);
+      groups.push(groupPlayers);
+
+      // Update pair history for this group
+      for (let j = 0; j < groupPlayers.length; j++) {
+        for (let k = j + 1; k < groupPlayers.length; k++) {
+          const pairKey = getPairKey(groupPlayers[j]._id, groupPlayers[k]._id);
+          pairHistory[pairKey] = (pairHistory[pairKey] || 0) + 1;
+        }
       }
+
+      i += groupSize;
+    }
+
+    // Update room's pair history
+    await ctx.db.patch(args.roomId, { pairHistory });
+
+    // Create group records
+    for (const groupPlayers of groups) {
+      const memberIds = groupPlayers.map((p: any) => p._id);
+
+      // Create group document
+      const groupData: any = {
+        roomId: args.roomId,
+        roundIndex: currentRound,
+        user1Id: memberIds[0],
+        user2Id: memberIds[1] || undefined,
+        user3Id: memberIds[2] || undefined,
+        user4Id: memberIds[3] || undefined,
+        memberCount: memberIds.length,
+        phase: "name_matching",
+        nameChoicesByPlayer: {},
+        nameSelectionsByPlayer: {},
+        submittedNameMatching: [],
+        completedNameMatching: [],
+        incorrectByPlayer: {},
+        createdAt: Date.now(),
+      };
+
+      const groupId = await ctx.db.insert("groups", groupData);
+
+      // Update all members' status
+      for (const memberId of memberIds) {
+        await ctx.db.patch(memberId, {
+          status: "in_group",
+          currentGroupId: groupId,
+        });
+      }
+
+      // Generate name choices for this group
+      await ctx.scheduler.runAfter(0, internal.groups.generateNameChoicesInternal, {
+        groupId,
+      });
     }
   },
 });
 
-// Auto-cancel requests when target group becomes full
-export const cancelRequestsForFullGroup = internalMutation({
+/**
+ * Generate name choices for each player in the group
+ * For each player, create a map of other players' avatars to [correctName, decoy1, decoy2]
+ */
+export const generateNameChoicesInternal = internalMutation({
   args: { groupId: v.id("groups") },
   handler: async (ctx, args) => {
     const group = await ctx.db.get(args.groupId);
     if (!group) return;
 
-    // Get the room to check max group size
-    const room = await ctx.db.get(group.roomId);
-    if (!room) return;
+    const memberIds = [group.user1Id, group.user2Id, group.user3Id, group.user4Id].filter(Boolean) as Id<"users">[];
 
-    const currentSize = getGroupSize(group);
-    const maxSize = room.maxGroupSize || 4;
+    // Get all members
+    const members = await Promise.all(memberIds.map((id) => ctx.db.get(id)));
+    const validMembers = members.filter((m): m is NonNullable<typeof m> => m !== null);
 
-    // If group is full, cancel all pending requests targeting members of this group
-    if (currentSize >= maxSize) {
-      const memberIds = [
-        group.user1Id,
-        group.user2Id,
-        group.user3Id,
-        group.user4Id,
-      ].filter(Boolean) as string[];
+    // Get all users in room for decoy names
+    const roomUsers = await ctx.db
+      .query("users")
+      .withIndex("by_room", (q) => q.eq("roomId", group.roomId))
+      .collect();
 
-      for (const memberId of memberIds) {
-        // Find all pending requests targeting this member
-        const requests = await ctx.db
-          .query("groupRequests")
-          .withIndex("by_room_and_target", (q) =>
-            q.eq("roomId", group.roomId).eq("targetId", memberId as any)
-          )
-          .filter((q) => q.eq(q.field("status"), "pending"))
-          .collect();
+    const nameChoicesByPlayer: any = {};
 
-        // Cancel them
-        for (const request of requests) {
-          await ctx.db.patch(request._id, { status: "cancelled" });
+    // For each player, generate choices for each other player
+    for (const member of validMembers) {
+      if (!member) continue;
 
-          // Reset requester status if still pending_sent
-          const requester = await ctx.db.get(request.requesterId);
-          if (requester && requester.status === "pending_sent") {
-            await ctx.db.patch(request.requesterId, { status: "available" });
+      const choices: any = {};
+
+      // For each OTHER member in the group
+      for (const otherMember of validMembers) {
+        if (!otherMember || otherMember._id === member._id) continue;
+
+        // Get correct name
+        const correctName = otherMember.displayName;
+
+        // Get decoy names (random other users, excluding group members)
+        const possibleDecoys = roomUsers.filter((u) =>
+          !memberIds.includes(u._id) && u.displayName !== correctName
+        );
+
+        // Shuffle and pick 2 decoys
+        const shuffledDecoys = [...possibleDecoys].sort(() => Math.random() - 0.5);
+        const decoys = shuffledDecoys.slice(0, 2).map((u) => u.displayName);
+
+        // If not enough decoys, duplicate correct name or use placeholder
+        while (decoys.length < 2) {
+          if (possibleDecoys.length > 0) {
+            // Pick a random existing decoy again
+            decoys.push(possibleDecoys[Math.floor(Math.random() * possibleDecoys.length)].displayName);
+          } else {
+            // Worst case: duplicate correct name (small room)
+            decoys.push(correctName + " (?)");
           }
         }
+
+        // Shuffle: correct + 2 decoys
+        const allOptions = [correctName, ...decoys];
+        const shuffledOptions = allOptions.sort(() => Math.random() - 0.5);
+
+        choices[otherMember._id] = shuffledOptions;
       }
+
+      nameChoicesByPlayer[member._id] = choices;
     }
+
+    // Update group with name choices
+    await ctx.db.patch(args.groupId, { nameChoicesByPlayer });
   },
 });
 
-// Send a group join request
+// ============================================================================
+// NAME MATCHING PHASE
+// ============================================================================
+
 /**
- * Sends a group join request from one user to another
- *
- * Features:
- * - Validates room is active and not winding down
- * - Prevents self-joining and duplicate requests
- * - Implements spam prevention with exponential backoff (1s → 2s → 4s → 8s → 16s)
- * - Enforces 3-second cooldown after canceling a request
- * - Auto-accepts if mutual request exists (both users requested each other)
- * - Checks target group isn't full before allowing request
- * - Updates user statuses and creates pending request with 30-second expiration
- *
- * @param args.userId - ID of user sending the request
- * @param args.targetId - ID of user being requested
- * @returns Success status and request details (or pairing details if auto-accepted)
- * @throws Error for validation failures, spam prevention, or room/user issues
+ * Submit a name selection for one avatar
  */
-export const sendGroupRequest = mutation({
+export const submitNameSelection = mutation({
   args: {
+    groupId: v.id("groups"),
     userId: v.id("users"),
-    targetId: v.id("users"),
+    targetUserId: v.id("users"), // Avatar they're naming
+    selectedName: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user) throw new Error("User not found");
-
-    const target = await ctx.db.get(args.targetId);
-    if (!target) throw new Error("Target user not found");
-
-    // Can't request yourself
-    if (user._id === target._id) {
-      throw new Error("Cannot join yourself");
+    const group = await ctx.db.get(args.groupId);
+    if (!group) throw new Error("Group not found");
+    if (group.phase !== "name_matching") {
+      throw new Error("Group is not in name matching phase");
     }
 
-    // Check if room is still active
-    const room = await ctx.db.get(user.roomId);
-    if (!room || !room.phase1Active) {
-      throw new Error("Room is not active");
+    // Update selections
+    const nameSelectionsByPlayer = group.nameSelectionsByPlayer || {};
+    if (!nameSelectionsByPlayer[args.userId]) {
+      nameSelectionsByPlayer[args.userId] = {};
     }
+    nameSelectionsByPlayer[args.userId][args.targetUserId] = args.selectedName;
 
-    // Block joining groups during winding down period
-    if (room.windingDownStartedAt) {
-      throw new Error("Session is ending soon");
-    }
-
-    // Block users who have a pending incoming request
-    if (user.status === "pending_received") {
-      throw new Error("Please respond to your incoming request first");
-    }
-
-    // Check spam prevention - exponential backoff
-    const now = Date.now();
-    const backoffLevel = user.requestBackoffLevel || 0;
-    const backoffTime = getBackoffTime(backoffLevel);
-
-    if (user.lastRequestAt && now - user.lastRequestAt < backoffTime) {
-      throw new Error("Please wait...");
-    }
-
-    // Prevent immediate resend after cancel (3-second cooldown)
-    const CANCEL_COOLDOWN = 3000; // 3 seconds
-    if (user.lastCancelAt && now - user.lastCancelAt < CANCEL_COOLDOWN) {
-      throw new Error("Please wait before sending another request");
-    }
-
-    // Check if requester already has a pending outgoing request
-    const existingOutgoing = await ctx.db
-      .query("groupRequests")
-      .withIndex("by_room_and_requester", (q) =>
-        q.eq("roomId", user.roomId).eq("requesterId", args.userId)
-      )
-      .filter((q) => q.eq(q.field("status"), "pending"))
-      .first();
-
-    if (existingOutgoing) {
-      throw new Error("You already have a pending request. Please wait or cancel it.");
-    }
-
-    // Check if target already has a group
-    let targetGroupId = target.currentGroupId;
-    if (targetGroupId) {
-      const targetGroup = await ctx.db.get(targetGroupId);
-      if (targetGroup && targetGroup.status !== "completed") {
-        // Check if group is full
-        const groupSize = getGroupSize(targetGroup);
-        const maxSize = room.maxGroupSize || 4;
-
-        if (groupSize >= maxSize) {
-          throw new Error("This group is full");
-        }
-
-        // Check if requester is already in this group
-        if (isUserInGroup(targetGroup, args.userId)) {
-          throw new Error("You're already in this group");
-        }
-      }
-    }
-
-    // Check for mutual request (target has requested requester)
-    const mutualRequest = await ctx.db
-      .query("groupRequests")
-      .withIndex("by_room_and_requester", (q) =>
-        q.eq("roomId", user.roomId).eq("requesterId", args.targetId)
-      )
-      .filter((q) => q.eq(q.field("status"), "pending"))
-      .first();
-
-    // If mutual request exists and target is requesting us, auto-accept!
-    if (mutualRequest && mutualRequest.targetId === args.userId) {
-      // Delete both requests
-      await ctx.db.patch(mutualRequest._id, { status: "accepted" });
-
-      // Handle the pairing/grouping
-      return await handleAcceptRequest(ctx, {
-        acceptorId: args.userId,
-        requesterId: args.targetId,
-        room,
-      });
-    }
-
-    // Create the request
-    const expiresAt = now + 30000; // 30 seconds
-    await ctx.db.insert("groupRequests", {
-      roomId: user.roomId,
-      requesterId: args.userId,
-      targetId: args.targetId,
-      targetGroupId,
-      status: "pending",
-      createdAt: now,
-      expiresAt,
-    });
-
-    // Update requester's spam prevention tracking and status
-    await ctx.db.patch(args.userId, {
-      status: "pending_sent",
-      lastRequestAt: now,
-      requestBackoffLevel: backoffLevel + 1,
-    });
-
-    // Update target's status to pending_received (only if not already in a group)
-    if (target.status === "available") {
-      await ctx.db.patch(args.targetId, {
-        status: "pending_received",
-      });
-    }
-
-    return { success: true, waiting: true };
+    await ctx.db.patch(args.groupId, { nameSelectionsByPlayer });
   },
 });
 
-// Helper function to handle accepting a request (used by both accept and mutual acceptance)
-async function handleAcceptRequest(
-  ctx: any,
-  args: { acceptorId: string; requesterId: string; room: any }
-) {
-  const acceptor = await ctx.db.get(args.acceptorId);
-  const requester = await ctx.db.get(args.requesterId);
+/**
+ * Validate name matching when a player submits all their selections
+ * Wait for ALL players to submit before validating anyone
+ * Then show everyone their results at once
+ */
+export const validateNameMatching = mutation({
+  args: {
+    groupId: v.id("groups"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const group = await ctx.db.get(args.groupId);
+    if (!group) throw new Error("Group not found");
+    if (group.phase !== "name_matching") {
+      throw new Error("Group is not in name matching phase");
+    }
 
-  if (!acceptor || !requester) {
-    throw new Error("User not found");
-  }
+    const memberIds = [group.user1Id, group.user2Id, group.user3Id, group.user4Id].filter(Boolean) as Id<"users">[];
+    const members = await Promise.all(memberIds.map((id) => ctx.db.get(id)));
 
-  // Check if acceptor is in a group
-  if (acceptor.currentGroupId) {
-    const acceptorGroup = await ctx.db.get(acceptor.currentGroupId);
-    if (acceptorGroup && acceptorGroup.status !== "completed") {
-      // Add requester to acceptor's group
-      const groupSize = getGroupSize(acceptorGroup);
-      const maxSize = args.room.maxGroupSize || 4;
+    // Mark user as submitted
+    const submittedNameMatching = group.submittedNameMatching || [];
+    if (!submittedNameMatching.includes(args.userId)) {
+      submittedNameMatching.push(args.userId);
+    }
 
-      if (groupSize >= maxSize) {
-        throw new Error("Group is full");
-      }
+    await ctx.db.patch(args.groupId, { submittedNameMatching });
 
-      // Add requester to the group
-      const slotNum = groupSize + 1;
-      const updateFields: any = {
-        [`user${slotNum}Id`]: args.requesterId,
-        memberCount: groupSize + 1,
+    // Check if all members have submitted
+    if (submittedNameMatching.length < memberIds.length) {
+      // Still waiting for others
+      return {
+        submitted: true,
+        waitingForOthers: true,
+        submittedCount: submittedNameMatching.length,
+        totalCount: memberIds.length,
       };
+    }
 
-      await ctx.db.patch(acceptor.currentGroupId, updateFields);
+    // All members have submitted - validate everyone
+    const nameSelectionsByPlayer = group.nameSelectionsByPlayer || {};
+    const incorrectByPlayer: Record<string, string[]> = {};
+    const completedNameMatching: string[] = [];
 
-      // Update requester's status
-      await ctx.db.patch(args.requesterId, {
-        currentGroupId: acceptor.currentGroupId,
-        status: "in_group",
-      });
+    for (const memberId of memberIds) {
+      const memberSelections = nameSelectionsByPlayer[memberId] || {};
+      const incorrectAvatars: string[] = [];
 
-      // Get all members for response
-      const members = await getGroupMembers(ctx, acceptorGroup);
+      // Check each selection for this member
+      for (const otherMember of members) {
+        if (!otherMember || otherMember._id === memberId) continue;
 
-      // Check if group is now full and cancel pending requests
-      if (groupSize + 1 >= maxSize) {
-        await ctx.scheduler.runAfter(0, internal.groups.cancelRequestsForFullGroup, {
-          groupId: acceptor.currentGroupId,
-        });
+        const selectedName = memberSelections[otherMember._id];
+        if (selectedName !== otherMember.displayName) {
+          incorrectAvatars.push(otherMember._id);
+        }
       }
+
+      if (incorrectAvatars.length > 0) {
+        incorrectByPlayer[memberId] = incorrectAvatars;
+        // Reset incorrect selections for this player
+        for (const avatarId of incorrectAvatars) {
+          delete memberSelections[avatarId];
+        }
+        nameSelectionsByPlayer[memberId] = memberSelections;
+      } else {
+        // All correct for this player
+        completedNameMatching.push(memberId);
+      }
+    }
+
+    // Update group with validation results
+    const updates: any = {
+      nameSelectionsByPlayer,
+      incorrectByPlayer,
+      completedNameMatching,
+      submittedNameMatching: [], // Reset submitted list for retry
+    };
+
+    // Check if everyone got all correct
+    if (completedNameMatching.length === memberIds.length) {
+      // Advance to WYR phase
+      const question = await selectQuestion(ctx, group.roomId, memberIds);
+      updates.phase = "wyr";
+      updates.currentQuestionId = question._id;
+      updates.questionStartedAt = Date.now();
+      updates.incorrectByPlayer = {}; // Clear errors
+
+      await ctx.db.patch(args.groupId, updates);
 
       return {
-        success: true,
-        joinedGroup: true,
-        groupId: acceptor.currentGroupId,
-        members,
-        question: acceptorGroup.currentQuestionId
-          ? await ctx.db.get(acceptorGroup.currentQuestionId)
-          : null,
+        validated: true,
+        allCorrect: true,
+        question,
       };
     }
-  }
 
-  // Check if requester is in a group
-  if (requester.currentGroupId) {
-    const requesterGroup = await ctx.db.get(requester.currentGroupId);
-    if (requesterGroup && requesterGroup.status !== "completed") {
-      // Add acceptor to requester's group
-      const groupSize = getGroupSize(requesterGroup);
-      const maxSize = args.room.maxGroupSize || 4;
+    await ctx.db.patch(args.groupId, updates);
 
-      if (groupSize >= maxSize) {
-        throw new Error("Group is full");
-      }
-
-      // Add acceptor to the group
-      const slotNum = groupSize + 1;
-      const updateFields: any = {
-        [`user${slotNum}Id`]: args.acceptorId,
-        memberCount: groupSize + 1,
-      };
-
-      await ctx.db.patch(requester.currentGroupId, updateFields);
-
-      // Update acceptor's status
-      await ctx.db.patch(args.acceptorId, {
-        currentGroupId: requester.currentGroupId,
-        status: "in_group",
-      });
-
-      // Get all members for response
-      const members = await getGroupMembers(ctx, requesterGroup);
-
-      // Check if group is now full and cancel pending requests
-      if (groupSize + 1 >= maxSize) {
-        await ctx.scheduler.runAfter(0, internal.groups.cancelRequestsForFullGroup, {
-          groupId: requester.currentGroupId,
-        });
-      }
-
-      return {
-        success: true,
-        joinedGroup: true,
-        groupId: requester.currentGroupId,
-        members,
-        question: requesterGroup.currentQuestionId
-          ? await ctx.db.get(requesterGroup.currentQuestionId)
-          : null,
-      };
-    }
-  }
-
-  // Neither has a group, create a new one
-  const memberIds = [args.acceptorId, args.requesterId];
-  const question = await selectQuestion(ctx, args.room._id, memberIds);
-
-  const groupId = await ctx.db.insert("groups", {
-    roomId: args.room._id,
-    user1Id: args.acceptorId,
-    user2Id: args.requesterId,
-    memberCount: 2,
-    currentQuestionId: question._id,
-    user1Answered: false,
-    user2Answered: false,
-    status: "active",
-    createdAt: Date.now(),
-  });
-
-  // Update both users
-  await ctx.db.patch(args.acceptorId, {
-    currentGroupId: groupId,
-    status: "in_group",
-  });
-  await ctx.db.patch(args.requesterId, {
-    currentGroupId: groupId,
-    status: "in_group",
-  });
-
-  return {
-    success: true,
-    createdGroup: true,
-    groupId,
-    members: [
-      { id: acceptor._id, avatar: acceptor.avatar, code: acceptor.code },
-      { id: requester._id, avatar: requester.avatar, code: requester.code },
-    ],
-    question: {
-      text: question.text,
-      optionA: question.optionA,
-      optionB: question.optionB,
-      followUp: question.followUp,
-    },
-  };
-}
-
-// Get all members of a group
-async function getGroupMembers(ctx: any, group: any) {
-  const members = [];
-  const userIds = [group.user1Id, group.user2Id, group.user3Id, group.user4Id];
-
-  for (const userId of userIds) {
-    if (userId) {
-      const user = await ctx.db.get(userId);
-      if (user) {
-        members.push({
-          id: user._id,
-          avatar: user.avatar,
-          code: user.code,
-        });
-      }
-    }
-  }
-
-  return members;
-}
-
-// Accept a group request
-/**
- * Accepts a group join request
- *
- * Logic:
- * - If acceptor has no group and requester has no group: Creates new 2-person group
- * - If acceptor has group and requester doesn't: Adds requester to acceptor's group
- * - If acceptor has no group and requester has group: Adds acceptor to requester's group
- * - Validates group size limits before adding members
- * - Selects a question for new/updated group
- * - Resets spam prevention backoff levels for both users on success
- *
- * @param args.userId - ID of user accepting the request (target)
- * @param args.requestId - ID of the group request being accepted
- * @returns Group details including members and question, or error information
- * @throws Error if request invalid, expired, room inactive, or group full
- */
-export const acceptGroupRequest = mutation({
-  args: {
-    userId: v.id("users"),
-    requestId: v.id("groupRequests"),
-  },
-  handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user) throw new Error("User not found");
-
-    const request = await ctx.db.get(args.requestId);
-    if (!request) throw new Error("Request not found");
-
-    // Verify this request is for this user
-    if (request.targetId !== args.userId) {
-      throw new Error("This request is not for you");
-    }
-
-    // Check if request is still pending
-    if (request.status !== "pending") {
-      throw new Error("Request is no longer active");
-    }
-
-    // Check if room is still active
-    const room = await ctx.db.get(user.roomId);
-    if (!room || !room.phase1Active) {
-      throw new Error("Room is not active");
-    }
-
-    // Mark request as accepted
-    await ctx.db.patch(request._id, { status: "accepted" });
-
-    // Handle the group join/creation
-    const result = await handleAcceptRequest(ctx, {
-      acceptorId: args.userId,
-      requesterId: request.requesterId,
-      room,
-    });
-
-    // Reset backoff level and cancel tracking for requester on successful acceptance
-    await ctx.db.patch(request.requesterId, {
-      requestBackoffLevel: 0,
-      lastCancelAt: undefined,
-    });
-
-    return result;
-  },
-});
-
-// Reject a group request
-export const rejectGroupRequest = mutation({
-  args: {
-    userId: v.id("users"),
-    requestId: v.id("groupRequests"),
-  },
-  handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user) throw new Error("User not found");
-
-    const request = await ctx.db.get(args.requestId);
-    if (!request) throw new Error("Request not found");
-
-    // Verify this request is for this user
-    if (request.targetId !== args.userId) {
-      throw new Error("This request is not for you");
-    }
-
-    // Mark request as rejected
-    await ctx.db.patch(request._id, { status: "rejected" });
-
-    // Reset requester status
-    const requester = await ctx.db.get(request.requesterId);
-    if (requester && requester.status === "pending_sent") {
-      await ctx.db.patch(request.requesterId, { status: "available" });
-    }
-
-    // Reset target's status (the user rejecting the request)
-    if (user.status === "pending_received") {
-      await ctx.db.patch(args.userId, { status: "available" });
-    }
-
-    return { success: true };
-  },
-});
-
-// Cancel your own outgoing request
-export const cancelGroupRequest = mutation({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user) return;
-
-    // Find pending outgoing request
-    const request = await ctx.db
-      .query("groupRequests")
-      .withIndex("by_room_and_requester", (q) =>
-        q.eq("roomId", user.roomId).eq("requesterId", args.userId)
-      )
-      .filter((q) => q.eq(q.field("status"), "pending"))
-      .first();
-
-    if (request) {
-      await ctx.db.patch(request._id, { status: "cancelled" });
-
-      // Reset target's status if they were pending_received
-      const target = await ctx.db.get(request.targetId);
-      if (target && target.status === "pending_received") {
-        await ctx.db.patch(request.targetId, { status: "available" });
-      }
-    }
-
-    // Reset user status and track cancel time
-    const now = Date.now();
-    await ctx.db.patch(args.userId, {
-      status: "available",
-      lastCancelAt: now,
-      // Increase backoff level on cancel to prevent spam (max 4)
-      requestBackoffLevel: Math.min((user.requestBackoffLevel || 0) + 1, 4),
-    });
-
-    return { success: true };
-  },
-});
-
-// Get user's outgoing request status
-export const getOutgoingRequest = query({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user) return null;
-
-    // Find most recent outgoing request (pending or recently completed)
-    const requests = await ctx.db
-      .query("groupRequests")
-      .withIndex("by_room_and_requester", (q) =>
-        q.eq("roomId", user.roomId).eq("requesterId", args.userId)
-      )
-      .order("desc")
-      .take(1);
-
-    const request = requests[0];
-    if (!request) return null;
-
-    // Only return if it's pending or recently changed (within 5 seconds)
-    const now = Date.now();
-    const recentlyChanged = now - request.createdAt < 35000; // 35 seconds window
-
-    if (request.status !== "pending" && !recentlyChanged) {
-      return null;
-    }
-
-    // Get target user info
-    const targetUser = await ctx.db.get(request.targetId);
-    if (!targetUser) return null;
-
+    // Return this user's specific errors
+    const myIncorrect = incorrectByPlayer[args.userId] || [];
     return {
-      requestId: request._id,
-      status: request.status,
-      target: {
-        id: targetUser._id,
-        avatar: targetUser.avatar,
-        code: targetUser.code,
-      },
-      createdAt: request.createdAt,
-      expiresAt: request.expiresAt,
+      validated: true,
+      allCorrect: false,
+      incorrectAvatars: myIncorrect,
+      success: myIncorrect.length === 0,
     };
   },
 });
 
-// Get all pending incoming requests for a user (up to group limit)
-export const getIncomingRequests = query({
-  args: { userId: v.id("users") },
+// ============================================================================
+// WYR PHASE
+// ============================================================================
+
+/**
+ * Submit an answer to the current question
+ */
+export const submitAnswer = mutation({
+  args: {
+    groupId: v.id("groups"),
+    userId: v.id("users"),
+    choice: v.string(), // "A" or "B"
+  },
   handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user) return [];
-
-    // Get room to check max group size
-    const room = await ctx.db.get(user.roomId);
-    if (!room) return [];
-
-    const maxSize = room.maxGroupSize || 4;
-
-    // Check current group size
-    let currentSize = 1; // User themselves
-    if (user.currentGroupId) {
-      const group = await ctx.db.get(user.currentGroupId);
-      if (group && group.status !== "completed") {
-        currentSize = getGroupSize(group);
-      }
+    const group = await ctx.db.get(args.groupId);
+    if (!group) throw new Error("Group not found");
+    if (group.phase !== "wyr") {
+      throw new Error("Group is not in WYR phase");
+    }
+    if (!group.currentQuestionId) {
+      throw new Error("No active question");
     }
 
-    // Calculate how many more can join
-    const remainingSlots = maxSize - currentSize;
-    if (remainingSlots <= 0) return [];
-
-    // Get pending incoming requests
-    const requests = await ctx.db
-      .query("groupRequests")
-      .withIndex("by_room_and_target", (q) =>
-        q.eq("roomId", user.roomId).eq("targetId", args.userId)
-      )
-      .filter((q) => q.eq(q.field("status"), "pending"))
-      .order("desc")
-      .take(remainingSlots);
-
-    // Get requester info for each request
-    const requestsWithInfo = [];
-    for (const request of requests) {
-      const requester = await ctx.db.get(request.requesterId);
-      if (requester) {
-        requestsWithInfo.push({
-          requestId: request._id,
-          requester: {
-            id: requester._id,
-            avatar: requester.avatar,
-            code: requester.code,
-          },
-          createdAt: request.createdAt,
-          expiresAt: request.expiresAt,
-        });
-      }
+    // Validate choice
+    if (args.choice !== "A" && args.choice !== "B") {
+      throw new Error("Invalid choice");
     }
 
-    return requestsWithInfo;
+    // Find which slot the user is in
+    const userSlot = getUserSlot(group, args.userId);
+    if (!userSlot) throw new Error("User not in this group");
+
+    // Update answer and answered flag for this user's slot
+    const updates: any = {};
+    updates[`user${userSlot}Answer`] = args.choice;
+    updates[`user${userSlot}Answered`] = true;
+
+    await ctx.db.patch(args.groupId, updates);
+
+    // Record answer in answers table
+    await ctx.db.insert("answers", {
+      roomId: group.roomId,
+      groupId: args.groupId,
+      questionId: group.currentQuestionId,
+      userId: args.userId,
+      choice: args.choice,
+      skipped: false,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
   },
 });
 
-// Get current group info
+// ============================================================================
+// QUERIES
+// ============================================================================
+
+/**
+ * Get the current group for a user
+ */
 export const getCurrentGroup = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
@@ -843,183 +586,56 @@ export const getCurrentGroup = query({
     const group = await ctx.db.get(user.currentGroupId);
     if (!group) return null;
 
-    const userSlot = getUserSlot(group, args.userId);
-    if (!userSlot) return null;
+    // Get all member info
+    const memberIds = [group.user1Id, group.user2Id, group.user3Id, group.user4Id].filter(Boolean) as Id<"users">[];
+    const members = await Promise.all(
+      memberIds.map(async (id) => {
+        const member = await ctx.db.get(id);
+        if (!member) return null;
+        return {
+          userId: member._id,
+          displayName: member.displayName,
+          avatar: member.avatar,
+          code: member.code,
+        };
+      })
+    );
 
-    // Get all group members
-    const members = [];
-    const userIds = [group.user1Id, group.user2Id, group.user3Id, group.user4Id];
-
-    for (let i = 0; i < userIds.length; i++) {
-      const memberId = userIds[i];
-      if (memberId) {
-        const member = await ctx.db.get(memberId);
-        if (member) {
-          const answered = group[`user${i + 1}Answered` as keyof typeof group] || false;
-          const answer = group[`user${i + 1}Answer` as keyof typeof group] as string | undefined;
-          members.push({
-            id: member._id,
-            avatar: member.avatar,
-            code: member.code,
-            answered,
-            answer,
-            isMe: memberId === args.userId,
-          });
-        }
-      }
+    // Get question if in WYR phase
+    let question = null;
+    if (group.phase === "wyr" && group.currentQuestionId) {
+      question = await ctx.db.get(group.currentQuestionId);
     }
 
-    const question = group.currentQuestionId
-      ? await ctx.db.get(group.currentQuestionId)
-      : null;
+    // Get user's answer
+    const userSlot = getUserSlot(group, args.userId);
+    let myAnswer = null;
+    if (userSlot) {
+      myAnswer = (group as any)[`user${userSlot}Answer`];
+    }
 
-    const myAnswered = group[`user${userSlot}Answered` as keyof typeof group] || false;
-    const allAnswered = members.every((m) => m.answered);
+    // Get all answers
+    const answers: any = {};
+    for (let i = 1; i <= 4; i++) {
+      const memberId = (group as any)[`user${i}Id`];
+      const answer = (group as any)[`user${i}Answer`];
+      if (memberId && answer) {
+        answers[memberId] = answer;
+      }
+    }
 
     return {
       groupId: group._id,
-      members,
-      question: question
-        ? {
-            text: question.text,
-            optionA: question.optionA,
-            optionB: question.optionB,
-            followUp: question.followUp,
-          }
-        : null,
-      myAnswered,
-      allAnswered,
-      status: group.status,
-      completedAt: group.completedAt,
-      createdAt: group.createdAt,
+      phase: group.phase,
+      members: members.filter(Boolean),
+      question,
+      myAnswer,
+      answers,
+      nameChoicesByPlayer: group.nameChoicesByPlayer || {},
+      nameSelectionsByPlayer: group.nameSelectionsByPlayer || {},
+      submittedNameMatching: group.submittedNameMatching || [],
+      completedNameMatching: group.completedNameMatching || [],
+      incorrectByPlayer: group.incorrectByPlayer || {},
     };
-  },
-});
-
-// Submit an answer to the group's question
-export const submitAnswer = mutation({
-  args: {
-    userId: v.id("users"),
-    groupId: v.id("groups"),
-    choice: v.string(), // "A" or "B"
-  },
-  handler: async (ctx, args) => {
-    const group = await ctx.db.get(args.groupId);
-    if (!group) throw new Error("Group not found");
-
-    const userSlot = getUserSlot(group, args.userId);
-    if (!userSlot) {
-      throw new Error("Not part of this group");
-    }
-
-    // Update the group with the answer
-    const updateFields: any = {
-      [`user${userSlot}Answer`]: args.choice,
-      [`user${userSlot}Answered`]: true,
-    };
-    await ctx.db.patch(args.groupId, updateFields);
-
-    // Store the answer
-    if (group.currentQuestionId) {
-      await ctx.db.insert("answers", {
-        roomId: group.roomId,
-        groupId: args.groupId,
-        questionId: group.currentQuestionId,
-        userId: args.userId,
-        choice: args.choice,
-        skipped: false,
-        timestamp: Date.now(),
-      });
-    }
-  },
-});
-
-// Complete the group session
-/**
- * Marks a group as completed and resets all members to available status
- *
- * Actions:
- * - Sets group status to "completed" with timestamp
- * - Clears currentGroupId from all members (user1-4)
- * - Resets all members' status to "available"
- * - Resets spam prevention backoff levels to 0 for all members
- * - Members can immediately join new groups after completion
- *
- * @param args.userId - ID of user completing the group (for validation)
- * @param args.groupId - ID of group to mark as completed
- * @throws Error if group not found
- */
-export const completeGroup = mutation({
-  args: {
-    userId: v.id("users"),
-    groupId: v.id("groups"),
-  },
-  handler: async (ctx, args) => {
-    const group = await ctx.db.get(args.groupId);
-    if (!group) throw new Error("Group not found");
-
-    await ctx.db.patch(args.groupId, {
-      status: "completed",
-      completedAt: Date.now(),
-    });
-
-    // Clear current group from all members and reset status to available
-    const memberIds = [
-      group.user1Id,
-      group.user2Id,
-      group.user3Id,
-      group.user4Id,
-    ].filter(Boolean);
-
-    for (const memberId of memberIds) {
-      await ctx.db.patch(memberId as any, {
-        currentGroupId: undefined,
-        status: "available",
-        requestBackoffLevel: 0, // Reset backoff on completion
-      });
-    }
-  },
-});
-
-// Get available users for grouping
-export const getAvailableUsers = query({
-  args: {
-    roomId: v.id("rooms"),
-    excludeUserId: v.optional(v.id("users")),
-  },
-  handler: async (ctx, args) => {
-    const users = await ctx.db
-      .query("users")
-      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
-      .collect();
-
-    // Return users with their group status
-    const usersWithGroupInfo = [];
-
-    for (const user of users) {
-      if (user._id === args.excludeUserId) continue;
-
-      let groupSize = 0;
-      let groupId = null;
-
-      if (user.currentGroupId) {
-        const group = await ctx.db.get(user.currentGroupId);
-        if (group && group.status !== "completed") {
-          groupSize = getGroupSize(group);
-          groupId = group._id;
-        }
-      }
-
-      usersWithGroupInfo.push({
-        id: user._id,
-        avatar: user.avatar,
-        code: user.code,
-        status: user.status,
-        groupSize,
-        groupId,
-      });
-    }
-
-    return usersWithGroupInfo;
   },
 });

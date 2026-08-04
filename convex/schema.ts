@@ -7,11 +7,13 @@ export default defineSchema({
     pin: v.string(), // Owner PIN for access
     name: v.string(),
     phase1Active: v.boolean(),
-    phase1Duration: v.number(), // in seconds
+    phase1Rounds: v.number(), // Number of 30-second rounds (default 5)
+    currentRound: v.number(), // Current round number (0 = not started, 1+ = active)
+    roundStartedAt: v.optional(v.number()), // When current round started
     phase1StartedAt: v.optional(v.number()),
-    windingDownStartedAt: v.optional(v.number()), // When winding down period begins
     maxGroupSize: v.number(), // Maximum users per group (default 4)
     nextQuestionIndex: v.optional(v.number()), // Tracks next question position in room's sequence (0-based, defaults to 0)
+    pairHistory: v.optional(v.any()), // Map of "playerId1:playerId2" -> count to minimize repeat pairings
     createdAt: v.number(),
     expiresAt: v.number(), // Room expires after 7 days
   })
@@ -21,19 +23,17 @@ export default defineSchema({
 
   users: defineTable({
     roomId: v.id("rooms"),
+    displayName: v.string(), // User's display name for name-matching phase
     avatar: v.string(), // Emoji avatar chosen by user
     code: v.number(), // 2-digit user code (10-99)
     joinedAt: v.number(),
     currentGroupId: v.optional(v.id("groups")),
     status: v.union(
       v.literal("available"),
-      v.literal("pending_sent"),
-      v.literal("pending_received"),
-      v.literal("in_group")
+      v.literal("in_group"),
+      v.literal("waiting_for_round")
     ), // User availability state
-    lastRequestAt: v.optional(v.number()), // For spam prevention
-    requestBackoffLevel: v.optional(v.number()), // Exponential backoff level (0, 1, 2, 3...)
-    lastCancelAt: v.optional(v.number()), // Track last cancel time for cooldown
+    isLateJoiner: v.optional(v.boolean()), // True if joined after game started
   })
     .index("by_room", ["roomId"])
     .index("by_room_and_code", ["roomId", "code"])
@@ -41,11 +41,23 @@ export default defineSchema({
 
   groups: defineTable({
     roomId: v.id("rooms"),
+    roundIndex: v.number(), // Which round this group was created in (1-based)
     user1Id: v.id("users"),
     user2Id: v.optional(v.id("users")),
     user3Id: v.optional(v.id("users")),
     user4Id: v.optional(v.id("users")),
-    memberCount: v.number(), // Current number of members (1-4)
+    memberCount: v.number(), // Current number of members (2-4)
+    phase: v.union(
+      v.literal("name_matching"), // Name matching phase
+      v.literal("wyr") // Would you rather phase
+    ),
+    // Name matching data
+    nameChoicesByPlayer: v.optional(v.any()), // Map of playerId -> Map of avatarId -> [name1, name2, name3]
+    nameSelectionsByPlayer: v.optional(v.any()), // Map of playerId -> Map of avatarId -> selectedName
+    submittedNameMatching: v.optional(v.array(v.id("users"))), // Players who submitted (awaiting validation)
+    completedNameMatching: v.optional(v.array(v.id("users"))), // Players who completed name matching correctly
+    incorrectByPlayer: v.optional(v.any()), // Map of playerId -> [incorrectAvatarIds] after validation
+    // WYR phase data
     currentQuestionId: v.optional(v.id("questions")),
     user1Answer: v.optional(v.string()), // "A" or "B"
     user2Answer: v.optional(v.string()), // "A" or "B"
@@ -56,22 +68,14 @@ export default defineSchema({
     user3Answered: v.optional(v.boolean()),
     user4Answered: v.optional(v.boolean()),
     questionStartedAt: v.optional(v.number()),
-    talkingStartedAt: v.optional(v.number()),
-    status: v.union(
-      v.literal("active"), // Group is active and can accept new members
-      v.literal("in_question"), // Currently answering a question
-      v.literal("talking"), // In conversation phase
-      v.literal("completed") // Session completed
-    ),
     createdAt: v.number(),
-    completedAt: v.optional(v.number()),
   })
     .index("by_room", ["roomId"])
     .index("by_user1", ["user1Id"])
     .index("by_user2", ["user2Id"])
     .index("by_user3", ["user3Id"])
     .index("by_user4", ["user4Id"])
-    .index("by_room_and_status", ["roomId", "status"]),
+    .index("by_room_and_round", ["roomId", "roundIndex"]),
 
   questions: defineTable({
     text: v.string(),
@@ -94,26 +98,6 @@ export default defineSchema({
     .index("by_room", ["roomId"])
     .index("by_user", ["userId"])
     .index("by_group", ["groupId"]),
-
-  groupRequests: defineTable({
-    roomId: v.id("rooms"),
-    requesterId: v.id("users"),
-    targetId: v.id("users"),
-    targetGroupId: v.optional(v.id("groups")), // Group the target is in (if any)
-    status: v.union(
-      v.literal("pending"),
-      v.literal("accepted"),
-      v.literal("rejected"),
-      v.literal("expired"),
-      v.literal("cancelled")
-    ),
-    createdAt: v.number(),
-    expiresAt: v.number(), // Timestamp when request expires (30s timeout)
-  })
-    .index("by_room_and_requester", ["roomId", "requesterId"])
-    .index("by_room_and_target", ["roomId", "targetId"])
-    .index("by_expires_at", ["expiresAt"])
-    .index("by_status", ["status"]),
 
   // Phase 2: Summary Game tables
   games: defineTable({

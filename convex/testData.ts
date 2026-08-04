@@ -14,19 +14,26 @@ export const generateTestRoom = mutation({
       pin: "1234",
       name: "Test Room",
       phase1Active: false,
-      phase1Duration: 600, // 10 minutes
+      phase1Rounds: 5, // 5 rounds of 30 seconds
+      currentRound: 0,
       phase1StartedAt: now - 600000, // Started 10 minutes ago (finished)
       maxGroupSize: 4,
       nextQuestionIndex: 0,
+      pairHistory: {},
       createdAt: now,
       expiresAt: now + fortyEightHours,
     });
 
-    // Test avatars
+    // Test avatars and names
     const avatars = [
       "🦁", "🐯", "🦊", "🐼", "🐨", "🐸", "🦉", "🦄",
       "🐘", "🦒", "🦘", "🦫", "🦦", "🦥", "🦨", "🐿️",
       "🦔", "🦇", "🐺", "🦁"
+    ];
+    const names = [
+      "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry",
+      "Ivy", "Jack", "Kate", "Leo", "Mia", "Noah", "Olivia", "Paul",
+      "Quinn", "Rose", "Sam", "Tina"
     ];
 
     // Create 20 test users
@@ -34,6 +41,7 @@ export const generateTestRoom = mutation({
     for (let i = 0; i < 20; i++) {
       const userId = await ctx.db.insert("users", {
         roomId,
+        displayName: names[i],
         avatar: avatars[i],
         code: 10 + i,
         joinedAt: now - 500000,
@@ -67,15 +75,15 @@ export const generateTestRoom = mutation({
       // Create a fake group for each question
       const groupId = await ctx.db.insert("groups", {
         roomId,
+        roundIndex: i + 1,
         user1Id: userIds[groupCount % userIds.length],
         user2Id: userIds[(groupCount + 1) % userIds.length],
         user3Id: userIds[(groupCount + 2) % userIds.length],
         user4Id: userIds[(groupCount + 3) % userIds.length],
         memberCount: 4,
+        phase: "wyr",
         currentQuestionId: question._id,
-        status: "completed",
         createdAt: now - 400000,
-        completedAt: now - 300000,
       });
       groupCount++;
 
@@ -164,7 +172,6 @@ export const cleanupAllData = mutation({
       rooms: 0,
       users: 0,
       groups: 0,
-      groupRequests: 0,
       answers: 0,
       games: 0,
       gameRounds: 0,
@@ -191,13 +198,6 @@ export const cleanupAllData = mutation({
     for (const group of groups) {
       await ctx.db.delete(group._id);
       deletedCounts.groups++;
-    }
-
-    // Delete all group requests
-    const groupRequests = await ctx.db.query("groupRequests").collect();
-    for (const req of groupRequests) {
-      await ctx.db.delete(req._id);
-      deletedCounts.groupRequests++;
     }
 
     // Delete all answers

@@ -3,11 +3,14 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// Cleanup expired group requests every 10 seconds
+// Enforce round timers every 5 seconds
+// - Checks all active rooms with phase1Active = true
+// - If round timer expired (30s), advances to next round
+// - Dissolves groups and calls assignGroupsForRound()
 crons.interval(
-  "cleanup expired requests",
-  { seconds: 10 },
-  internal.groups.cleanupExpiredRequests
+  "enforce round timers",
+  { seconds: 5 },
+  internal.rooms.enforceRoundTimers
 );
 
 // Cleanup expired rooms daily at 3 AM

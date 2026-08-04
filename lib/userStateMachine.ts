@@ -4,14 +4,21 @@ export type UserContext = {
   userId: string | null;
   roomId: string | null;
   userCode: number | null;
+  displayName: string;
   avatar: string;
   groupId: string | null;
   groupMembers: Array<{
-    id: string;
+    userId: string;
+    displayName: string;
     avatar: string;
     code: number;
     isMe?: boolean;
   }>;
+  // Name matching phase
+  nameChoices: Record<string, string[]>; // avatarId -> [name1, name2, name3]
+  nameSelections: Record<string, string>; // avatarId -> selectedName
+  completedNameMatching: string[]; // userIds who completed
+  // WYR phase
   question: {
     text: string;
     optionA: string;
@@ -19,7 +26,6 @@ export type UserContext = {
     followUp: string;
   } | null;
   myAnswer: string | null;
-  pendingRequestId: string | null;
   // Phase 2 fields
   gameId: string | null;
   currentRoundNumber: number | null;
@@ -29,12 +35,13 @@ export type UserContext = {
 };
 
 export type UserEvents =
-  | { type: "JOIN_ROOM"; userId: string; roomId: string; code: number; avatar: string }
-  | { type: "SEND_REQUEST"; targetId: string }
-  | { type: "CANCEL_REQUEST" }
-  | { type: "JOINED_GROUP"; groupId: string; members: any[]; question: any }
+  | { type: "JOIN_ROOM"; userId: string; roomId: string; code: number; displayName: string; avatar: string }
+  | { type: "WAITING_FOR_ROUND" }
+  | { type: "START_NAME_MATCHING"; groupId: string; members: any[]; nameChoices: Record<string, string[]> }
+  | { type: "SELECT_NAME"; avatarId: string; selectedName: string }
+  | { type: "ADVANCE_TO_WYR"; question: any }
   | { type: "SUBMIT_ANSWER"; value: string }
-  | { type: "LEAVE_GROUP" }
+  | { type: "ROUND_END" }
   | { type: "SESSION_LOCKED" }
   | { type: "START_PHASE2"; gameId: string; roundNumber: number; questionText: string }
   | { type: "SUBMIT_VOTE"; choice: string }
@@ -56,23 +63,35 @@ export const userMachine = setup({
         event.type === "JOIN_ROOM" ? event.roomId : null,
       userCode: ({ event }) =>
         event.type === "JOIN_ROOM" ? event.code : null,
+      displayName: ({ event }) =>
+        event.type === "JOIN_ROOM" ? event.displayName : "",
       avatar: ({ event }) =>
         event.type === "JOIN_ROOM" ? event.avatar : "",
     }),
-    setPendingRequest: assign({
-      pendingRequestId: ({ event }) =>
-        event.type === "SEND_REQUEST" ? event.targetId : null,
-    }),
-    clearPendingRequest: assign({
-      pendingRequestId: null,
-    }),
-    setGroupInfo: assign({
+    startNameMatching: assign({
       groupId: ({ event }) =>
-        event.type === "JOINED_GROUP" ? event.groupId : null,
+        event.type === "START_NAME_MATCHING" ? event.groupId : null,
       groupMembers: ({ event }) =>
-        event.type === "JOINED_GROUP" ? event.members : [],
+        event.type === "START_NAME_MATCHING" ? event.members : [],
+      nameChoices: ({ event }) =>
+        event.type === "START_NAME_MATCHING" ? event.nameChoices : {},
+      nameSelections: {},
+      completedNameMatching: [],
+    }),
+    selectName: assign({
+      nameSelections: ({ context, event }) => {
+        if (event.type === "SELECT_NAME") {
+          return {
+            ...context.nameSelections,
+            [event.avatarId]: event.selectedName,
+          };
+        }
+        return context.nameSelections;
+      },
+    }),
+    advanceToWyr: assign({
       question: ({ event }) =>
-        event.type === "JOINED_GROUP" ? event.question : null,
+        event.type === "ADVANCE_TO_WYR" ? event.question : null,
     }),
     setAnswer: assign({
       myAnswer: ({ event }) =>
@@ -81,6 +100,9 @@ export const userMachine = setup({
     clearGroup: assign({
       groupId: null,
       groupMembers: [],
+      nameChoices: {},
+      nameSelections: {},
+      completedNameMatching: [],
       question: null,
       myAnswer: null,
     }),
@@ -120,12 +142,15 @@ export const userMachine = setup({
     userId: null,
     roomId: null,
     userCode: null,
+    displayName: "",
     avatar: "",
     groupId: null,
     groupMembers: [],
+    nameChoices: {},
+    nameSelections: {},
+    completedNameMatching: [],
     question: null,
     myAnswer: null,
-    pendingRequestId: null,
     // Phase 2 context
     gameId: null,
     currentRoundNumber: null,
@@ -137,35 +162,40 @@ export const userMachine = setup({
     not_joined: {
       on: {
         JOIN_ROOM: {
-          target: "browsing",
+          target: "waiting_for_round_start",
           actions: "setUserInfo",
         },
       },
     },
-    browsing: {
+    waiting_for_round_start: {
       on: {
-        SEND_REQUEST: {
-          target: "waiting_for_acceptance",
-          actions: "setPendingRequest",
+        START_NAME_MATCHING: {
+          target: "name_matching",
+          actions: "startNameMatching",
         },
-        JOINED_GROUP: {
-          target: "question_active",
-          actions: "setGroupInfo",
+        SESSION_LOCKED: {
+          target: "session_locked",
+          actions: "clearGroup",
         },
-        SESSION_LOCKED: "session_locked",
       },
     },
-    waiting_for_acceptance: {
+    name_matching: {
       on: {
-        CANCEL_REQUEST: {
-          target: "browsing",
-          actions: "clearPendingRequest",
+        SELECT_NAME: {
+          actions: "selectName",
         },
-        JOINED_GROUP: {
+        ADVANCE_TO_WYR: {
           target: "question_active",
-          actions: ["clearPendingRequest", "setGroupInfo"],
+          actions: "advanceToWyr",
         },
-        SESSION_LOCKED: "session_locked",
+        ROUND_END: {
+          target: "waiting_for_round_start",
+          actions: "clearGroup",
+        },
+        SESSION_LOCKED: {
+          target: "session_locked",
+          actions: "clearGroup",
+        },
       },
     },
     question_active: {
@@ -173,11 +203,14 @@ export const userMachine = setup({
         SUBMIT_ANSWER: {
           actions: "setAnswer",
         },
-        LEAVE_GROUP: {
-          target: "browsing",
+        ROUND_END: {
+          target: "waiting_for_round_start",
           actions: "clearGroup",
         },
-        SESSION_LOCKED: "session_locked",
+        SESSION_LOCKED: {
+          target: "session_locked",
+          actions: "clearGroup",
+        },
       },
     },
     session_locked: {
@@ -195,8 +228,8 @@ export const userMachine = setup({
           actions: "setVote",
         },
         ROOM_RESET: {
-          target: "browsing",
-          actions: "resetPhase2",
+          target: "waiting_for_round_start",
+          actions: ["resetPhase2", "clearGroup"],
         },
       },
     },
@@ -207,8 +240,8 @@ export const userMachine = setup({
           actions: "nextRound",
         },
         ROOM_RESET: {
-          target: "browsing",
-          actions: "resetPhase2",
+          target: "waiting_for_round_start",
+          actions: ["resetPhase2", "clearGroup"],
         },
       },
     },
@@ -220,16 +253,16 @@ export const userMachine = setup({
         },
         GAME_COMPLETE: "phase2_complete",
         ROOM_RESET: {
-          target: "browsing",
-          actions: "resetPhase2",
+          target: "waiting_for_round_start",
+          actions: ["resetPhase2", "clearGroup"],
         },
       },
     },
     phase2_complete: {
       on: {
         ROOM_RESET: {
-          target: "browsing",
-          actions: "resetPhase2",
+          target: "waiting_for_round_start",
+          actions: ["resetPhase2", "clearGroup"],
         },
       },
     },
